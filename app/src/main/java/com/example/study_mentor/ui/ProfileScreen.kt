@@ -1,207 +1,304 @@
 package com.example.study_mentor.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.study_mentor.ui.theme.BackgroundOffWhite
-import com.example.study_mentor.ui.theme.PrimaryBlue
-import com.example.study_mentor.ui.theme.SecondaryGreen
+import com.google.firebase.auth.UserProfileChangeRequest
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
+private val ProfileBlue = Color(0xFF4263EB)
+private val ProfilePurple = Color(0xFF7950F2)
+private val ProfileBackground = Color(0xFFF6F7FC)
+
+/**
+ * Drop-in profile screen for the existing Study_Mentor AuthViewModel.
+ * The parent navigation owner should pass its own back/login callbacks.
+ */
 @Composable
 fun ProfileScreen(
-    onNavigateToLogin: () -> Unit = {},
-    onNavigateToRegister: () -> Unit = {},
+    onNavigateBack: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
     val authState by viewModel.authState.collectAsState()
+    val user = authState.currentUser
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundOffWhite)
-            .padding(16.dp)
-    ) {
-        // Top Header
-        Text(
-            text = "Profile",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        
-        // Center Content
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 80.dp), // offset for bottom bar
-            contentAlignment = Alignment.Center
-        ) {
-            if (authState.currentUser == null) {
-                // GUEST STATE
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+    var displayName by rememberSaveable(user?.uid) {
+        mutableStateOf(user?.displayName.orEmpty())
+    }
+    var editingName by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var savingName by remember { mutableStateOf(false) }
+    var sendingReset by remember { mutableStateOf(false) }
+    var sendingVerification by remember { mutableStateOf(false) }
+    var verified by remember(user?.uid) { mutableStateOf(user?.isEmailVerified == true) }
+    var shownName by remember(user?.uid) { mutableStateOf(user?.displayName.orEmpty()) }
+
+    LaunchedEffect(user?.uid) {
+        if (user == null) onNavigateToLogin()
+    }
+
+    Scaffold(
+        containerColor = ProfileBackground,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            Surface(color = Color.White, shadowElevation = 2.dp) {
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Generic User Silhouette Avatar
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(0xFFE2E8F0), // light grayish blue
-                        modifier = Modifier.size(100.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Guest User",
-                            tint = Color.Gray,
-                            modifier = Modifier.padding(20.dp)
-                        )
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Text(
-                        text = "You're not signed in",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "Create a free account to track XP, save solutions, and unlock gamified practice.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 32.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(40.dp))
-                    
-                    // Solid blue Create Free Account button
-                    Button(
-                        onClick = onNavigateToRegister,
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                    ) {
-                        Text(
-                            text = "Create Free Account",
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Ghost/outline Log In button
-                    OutlinedButton(
-                        onClick = onNavigateToLogin,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                    ) {
-                        Text(
-                            text = "Log In",
-                            color = PrimaryBlue,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
+                    Text("My Profile", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
-            } else {
-                // AUTHENTICATED STATE
-                val user = authState.currentUser
-                val displayName = user?.displayName?.takeIf { it.isNotBlank() } ?: user?.email ?: "User"
-                val initial = displayName.firstOrNull()?.uppercase() ?: "?"
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Colorful Avatar with user's initial
-                    Surface(
-                        shape = CircleShape,
-                        color = PrimaryBlue,
-                        modifier = Modifier.size(100.dp)
+            }
+        }
+    ) { insets ->
+        Column(
+            Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
+                    .background(Brush.linearGradient(listOf(ProfileBlue, ProfilePurple)))
+                    .padding(vertical = 30.dp, horizontal = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.size(88.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = initial,
-                                style = MaterialTheme.typography.displayMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Icon(Icons.Default.Person, contentDescription = "Profile avatar",
+                            tint = Color.White, modifier = Modifier.size(52.dp))
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(shownName.takeIf { it.isNotBlank() } ?: "Study Mentor User",
+                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 23.sp,
+                        textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(6.dp))
+                    Text(user?.email.orEmpty(), color = Color.White.copy(alpha = 0.90f),
+                        fontSize = 14.sp, textAlign = TextAlign.Center)
+                }
+            }
+
+            Spacer(Modifier.height(22.dp))
+            ProfileSectionTitle("ACCOUNT INFORMATION")
+            Spacer(Modifier.height(8.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    ProfileDetail("Full name", shownName.ifBlank { "Not set" })
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                    ProfileDetail("Email address", user?.email.orEmpty().ifBlank { "Not available" })
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                    ProfileDetail("Email verification", if (verified) "Verified" else "Not verified")
+                }
+            }
+
+            Spacer(Modifier.height(22.dp))
+            ProfileSectionTitle("ACCOUNT SETTINGS")
+            Spacer(Modifier.height(8.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(vertical = 5.dp)) {
+                    ProfileAction(Icons.Default.Edit, "Edit display name", "Update your public name") {
+                        displayName = shownName
+                        editingName = true
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 18.dp))
+                    ProfileAction(Icons.Default.Lock, "Change password", "Receive a password reset email",
+                        enabled = !sendingReset && !user?.email.isNullOrBlank()) {
+                        val email = user?.email ?: return@ProfileAction
+                        scope.launch {
+                            sendingReset = true
+                            try {
+                                user?.let { current ->
+                                    current.reload().await()
+                                    current.email?.let { address ->
+                                        com.google.firebase.auth.FirebaseAuth.getInstance()
+                                            .sendPasswordResetEmail(address).await()
+                                    } ?: error("Email address unavailable")
+                                } ?: error("Please sign in again")
+                                snackbarHostState.showSnackbar("Password reset email requested. Check your inbox.")
+                            } catch (e: CancellationException) { throw e }
+                            catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Could not send reset email. Please try again.")
+                            } finally { sendingReset = false }
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Text(
-                        text = displayName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Dummy XP Badge
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = SecondaryGreen.copy(alpha = 0.2f),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "XP: 150",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = SecondaryGreen,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(40.dp))
-                    
-                    // Ghost/outline Log Out button
-                    OutlinedButton(
-                        onClick = { viewModel.logout() },
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                    ) {
-                        Text(
-                            text = "Log Out",
-                            color = PrimaryBlue,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
+                    if (!verified) {
+                        HorizontalDivider(Modifier.padding(horizontal = 18.dp))
+                        ProfileAction(Icons.Default.Email, "Verify email", "Send a verification link",
+                            enabled = !sendingVerification) {
+                            scope.launch {
+                                sendingVerification = true
+                                try {
+                                    val current = user ?: error("Please sign in again")
+                                    current.reload().await()
+                                    verified = current.isEmailVerified
+                                    if (verified) {
+                                        snackbarHostState.showSnackbar("Your email is already verified.")
+                                    } else {
+                                        current.sendEmailVerification().await()
+                                        snackbarHostState.showSnackbar("Verification email sent. Check your inbox.")
+                                    }
+                                } catch (e: CancellationException) { throw e }
+                                catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("Could not send verification email.")
+                                } finally { sendingVerification = false }
+                            }
+                        }
                     }
                 }
             }
+
+            Spacer(Modifier.height(24.dp))
+            OutlinedButton(
+                onClick = { showLogoutDialog = true },
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Icon(Icons.Default.ExitToApp, contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text("Log out", fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("Study Mentor • Keep learning every day", color = Color.Gray,
+                style = MaterialTheme.typography.bodySmall)
+        }
+    }
+
+    if (editingName) {
+        AlertDialog(
+            onDismissRequest = { if (!savingName) editingName = false },
+            title = { Text("Edit display name") },
+            text = {
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it.take(60) },
+                    label = { Text("Full name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !savingName && displayName.trim().length in 2..60,
+                    onClick = {
+                        scope.launch {
+                            savingName = true
+                            try {
+                                val current = user ?: error("Please sign in again")
+                                current.updateProfile(
+                                    UserProfileChangeRequest.Builder()
+                                        .setDisplayName(displayName.trim()).build()
+                                ).await()
+                                // The FirebaseUser instance is mutable; refresh Compose's displayed data
+                                // by navigating/recomposing, and show the new name immediately below.
+                                shownName = displayName.trim()
+                                editingName = false
+                                snackbarHostState.showSnackbar("Display name updated successfully")
+                            } catch (e: CancellationException) { throw e }
+                            catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Could not update your name. Please try again.")
+                            } finally { savingName = false }
+                        }
+                    }
+                ) { Text(if (savingName) "Saving..." else "Save") }
+            },
+            dismissButton = {
+                TextButton(enabled = !savingName, onClick = { editingName = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Log out?") },
+            text = { Text("You will need to sign in again to access your account.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutDialog = false
+                    viewModel.logout()
+                    onNavigateToLogin()
+                }) { Text("Log out") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ProfileSectionTitle(value: String) {
+    Text(value, modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
+        color = ProfileBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+}
+
+@Composable
+private fun ProfileDetail(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+        Spacer(Modifier.height(4.dp))
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ProfileAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(13.dp))
+            .background(ProfileBlue.copy(alpha = 0.09f)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = ProfileBlue)
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         }
     }
 }
