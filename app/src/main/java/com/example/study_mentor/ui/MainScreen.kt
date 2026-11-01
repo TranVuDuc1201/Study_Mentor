@@ -118,12 +118,26 @@ fun MainScreen(
                     }
                 ) 
             }
-            composable("profile") { 
+            composable("profile") {
                 ProfileScreen(
-                    onNavigateToLogin = { navController.navigate("login") },
-                    onNavigateToRegister = { navController.navigate("register") },
+                    onNavigateBack = {
+                        navController.navigate("home") {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate("login") {
+                            popUpTo("profile") {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    },
                     viewModel = authViewModel
-                ) 
+                )
             }
             composable("login") {
                 LoginScreen(
