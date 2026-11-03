@@ -26,13 +26,16 @@ object OpenAIApiClient {
      * Sends a user prompt and streams text chunks line-by-line as a [Flow<String>].
      *
      * @param prompt        The question typed by the user.
+     * @param imageBase64   Optional Base64 encoded JPEG image string.
      * @param systemPrompt  Concise mentor persona instructions.
+     * @param maxTokens     Maximum completion tokens to generate.
      * @return              A [Flow] emitting incremental text tokens directly.
      */
     fun askQuestion(
         prompt: String,
         imageBase64: String? = null,
-        systemPrompt: String = "You are a concise study assistant. Answer in 1 to 2 sentences maximum. Do NOT use Markdown formatting (no asterisks or bold text). Emojis are allowed."
+        systemPrompt: String = "You are a concise, helpful study mentor. Provide direct, step-by-step answers. **CRITICAL FORMATTING RULES**: Do NOT use Markdown formatting (no asterisks, bolding, or italics). Do NOT use LaTeX or complex math formatting (like \\(, \\), \\perp, \\parallel). Instead, use plain text and standard Unicode characters (e.g., use 'vuông góc' or '⊥', use 'song song' or '∥', use 'suy ra' or '⇒'). Keep explanations simple, clear, and easy to read on a mobile screen. Emojis are allowed.",
+        maxTokens: Int = 1500
     ): Flow<String> = flow {
         val url = URL(ENDPOINT_URL)
         val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -50,11 +53,11 @@ object OpenAIApiClient {
             // Build User message object: text only or multimodal (text + base64 image_url)
             val userMessageJson = JSONObject().apply {
                 put("role", "user")
-                if (imageBase64 != null) {
+                if (!imageBase64.isNullOrBlank()) {
                     val contentArray = JSONArray().apply {
                         put(JSONObject().apply {
                             put("type", "text")
-                            put("text", prompt.ifBlank { "What is in this image?" })
+                            put("text", prompt)
                         })
                         put(JSONObject().apply {
                             put("type", "image_url")
@@ -73,7 +76,7 @@ object OpenAIApiClient {
             val rootJson = JSONObject().apply {
                 put("model", "vgpt/gpt-6.1-sol")
                 put("stream", true)
-                put("max_tokens", 100)
+                put("max_tokens", maxTokens)
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")
@@ -82,6 +85,8 @@ object OpenAIApiClient {
                     put(userMessageJson)
                 })
             }
+
+            Log.d("OpenAI_Debug", "Sending request payload (hasImage: ${!imageBase64.isNullOrBlank()}, maxTokens: $maxTokens, promptLength: ${prompt.length})")
 
             // Write JSON request body
             OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->

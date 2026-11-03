@@ -4,6 +4,9 @@
 
     <!-- Required for network requests to OpenAI / Proxy endpoints -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required for CameraX live preview and photo capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:allowBackup="true"

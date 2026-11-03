@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Home
@@ -49,6 +52,8 @@ fun MainScreen(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val isAskAi = currentRoute == "ask_ai"
+    val chatUiState by chatViewModel.uiState.collectAsState()
 
     val hideBottomBarRoutes = listOf("login", "register")
     val shouldShowBottomBar = currentRoute !in hideBottomBarRoutes
@@ -56,7 +61,10 @@ fun MainScreen(
     Scaffold(
         bottomBar = {
             if (shouldShowBottomBar) {
-                BottomBarWithFab(navController = navController)
+                BottomBarWithFab(
+                    navController = navController,
+                    chatViewModel = chatViewModel
+                )
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -178,9 +186,14 @@ fun MainScreen(
 }
 
 @Composable
-fun BottomBarWithFab(navController: NavHostController) {
+fun BottomBarWithFab(
+    navController: NavHostController,
+    chatViewModel: ChatViewModel
+) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val isAskAi = currentRoute == "ask_ai"
+    val chatUiState by chatViewModel.uiState.collectAsState()
 
     Box(
         modifier = Modifier.fillMaxWidth()
@@ -242,14 +255,20 @@ fun BottomBarWithFab(navController: NavHostController) {
                 icon = { Box(modifier = Modifier.height(24.dp)) }, // Placeholder space for the floating icon above it
                 label = { 
                     Text(
-                        text = "Ask AI", 
+                        text = if (isAskAi) "Send" else "Ask AI", 
                         fontSize = 12.sp, 
                         fontWeight = FontWeight.Medium
                     ) 
                 },
-                selected = currentRoute == "ask_ai",
+                selected = isAskAi,
                 onClick = {
-                    if (currentRoute != "ask_ai") {
+                    if (isAskAi) {
+                        if (chatUiState.messages.isEmpty() && chatUiState.selectedImageUri == null) {
+                            chatViewModel.triggerCapture()
+                        } else {
+                            chatViewModel.sendMessage()
+                        }
+                    } else {
                         navController.navigate("ask_ai") {
                             popUpTo(navController.graph.startDestinationId)
                             launchSingleTop = true
@@ -309,7 +328,13 @@ fun BottomBarWithFab(navController: NavHostController) {
         // The overlapping FAB
         FloatingActionButton(
             onClick = {
-                if (currentRoute != "ask_ai") {
+                if (isAskAi) {
+                    if (chatUiState.messages.isEmpty() && chatUiState.selectedImageUri == null) {
+                        chatViewModel.triggerCapture()
+                    } else {
+                        chatViewModel.sendMessage()
+                    }
+                } else {
                     navController.navigate("ask_ai") {
                         popUpTo(navController.graph.startDestinationId)
                         launchSingleTop = true
@@ -329,9 +354,9 @@ fun BottomBarWithFab(navController: NavHostController) {
                 .size(64.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "Ask AI",
-                modifier = Modifier.size(32.dp)
+                imageVector = if (isAskAi) Icons.AutoMirrored.Filled.Send else Icons.Default.AutoAwesome,
+                contentDescription = if (isAskAi) "Send / Solve" else "Ask AI",
+                modifier = Modifier.size(if (isAskAi) 24.dp else 32.dp)
             )
         }
     }
