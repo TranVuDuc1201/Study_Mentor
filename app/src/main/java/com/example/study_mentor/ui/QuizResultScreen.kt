@@ -1,6 +1,5 @@
 package com.example.study_mentor.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,10 +35,17 @@ import com.example.study_mentor.ui.theme.SecondaryGreen
 
 @Composable
 fun QuizResultScreen(
-    viewModel: QuizViewModel,
+    quizTitle: String,
+    score: Int,
+    totalQuestions: Int,
+    xpEarned: Int,
     onFinish: () -> Unit
 ) {
-    val result by viewModel.quizResult.collectAsState()
+    val percentage = if (totalQuestions > 0) {
+        (score.toFloat() / totalQuestions * 100).toInt()
+    } else {
+        0
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -54,13 +58,14 @@ fun QuizResultScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Trophy / Star Icon
+
                 Surface(
                     shape = CircleShape,
                     color = Color(0xFFFEF3C7),
@@ -69,7 +74,7 @@ fun QuizResultScreen(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Star,
-                            contentDescription = "Trophy",
+                            contentDescription = "Quiz completed",
                             tint = Color(0xFFD97706),
                             modifier = Modifier.size(56.dp)
                         )
@@ -80,22 +85,27 @@ fun QuizResultScreen(
                     text = "Quiz Completed!",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center
                 )
 
                 Text(
-                    text = result?.quizTitle ?: "Practice Session",
+                    text = quizTitle,
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.Gray
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Score Card
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 2.dp
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -103,41 +113,41 @@ fun QuizResultScreen(
                             .fillMaxWidth()
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
+
+                        Text(
+                            text = "$percentage%",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryBlue
+                        )
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "Score", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${result?.score ?: 0}/${result?.totalQuestions ?: 0}",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryBlue
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "XP Earned", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "+${result?.xpEarned ?: 0}",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryGreen
-                                )
-                            }
+                            ResultValue(
+                                label = "Score",
+                                value = "$score/$totalQuestions",
+                                valueColor = PrimaryBlue
+                            )
+
+                            ResultValue(
+                                label = "XP Earned",
+                                value = "+$xpEarned",
+                                valueColor = SecondaryGreen
+                            )
                         }
                     }
                 }
             }
 
-            // Finish Button
             Button(
                 onClick = onFinish,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryBlue
+                ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,5 +160,31 @@ fun QuizResultScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ResultValue(
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
     }
 }

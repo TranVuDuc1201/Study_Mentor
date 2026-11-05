@@ -13,6 +13,9 @@ import com.example.study_mentor.data.ChatMessage
 import com.example.study_mentor.data.ChatSession
 import com.example.study_mentor.data.FirestoreChatRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -348,6 +351,7 @@ class ChatViewModel(
                                 timestamp = System.currentTimeMillis()
                             )
                             repository.saveMessage(uid, activeSessionId, finalAiMessage)
+                            incrementQuestionCount(uid)
                         } catch (e: Exception) {
                             Log.e("ChatViewModel", "Failed to save AI message to Firestore", e)
                         }
@@ -440,6 +444,7 @@ class ChatViewModel(
             if (uid != null && activeSessionId != null) {
                 try {
                     repository.saveMessage(uid, activeSessionId, userMessage)
+                    incrementQuestionCount(uid)
                 } catch (e: Exception) {
                     Log.e("ChatViewModel", "Failed to save user message to Firestore", e)
                 }
@@ -501,6 +506,7 @@ class ChatViewModel(
                                 timestamp = System.currentTimeMillis()
                             )
                             repository.saveMessage(uid, activeSessionId, finalAiMessage)
+                            incrementQuestionCount(uid)
                         } catch (e: Exception) {
                             Log.e("ChatViewModel", "Failed to save AI message to Firestore", e)
                         }
@@ -533,5 +539,12 @@ class ChatViewModel(
     /** Clears any displayed error message. */
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    /** Increments the question counter shown on the Profile screen. */
+    private fun incrementQuestionCount(uid: String) {
+        FirebaseFirestore.getInstance().collection("users").document(uid)
+            .collection("stats").document("summary")
+            .set(mapOf("totalQuestionsAsked" to FieldValue.increment(1)), SetOptions.merge())
     }
 }
