@@ -104,7 +104,7 @@ fun PracticeScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "2 quizzes",
+                text = "4 quizzes",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray
             )
@@ -127,6 +127,22 @@ fun PracticeScreen(
                 subtitle = "3 questions • +200 XP",
                 icon = Icons.Outlined.Create,
                 onStartClick = { onStartQuiz("Cellular Respiration") }
+            )
+            QuizCard(
+                title = "Toán Lớp 2",
+                subject = "Tiểu học",
+                difficulty = "Easy",
+                subtitle = "3 questions • +100 XP",
+                icon = Icons.Outlined.Create,
+                onStartClick = { onStartQuiz("Toán Lớp 2") }
+            )
+            QuizCard(
+                title = "IQ Test",
+                subject = "Logic",
+                difficulty = "Medium",
+                subtitle = "3 questions • +200 XP",
+                icon = Icons.Outlined.Create,
+                onStartClick = { onStartQuiz("IQ Test") }
             )
         }
         

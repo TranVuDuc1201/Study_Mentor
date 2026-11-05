@@ -70,6 +70,60 @@ class QuizViewModel : ViewModel() {
                     correctOptionIndex = 1
                 )
             )
+        ),
+        "Toán Lớp 2" to QuizItem(
+            id = "3",
+            title = "Toán Lớp 2",
+            subject = "Tiểu học",
+            difficulty = "Easy",
+            subtitle = "3 questions • +100 XP",
+            questions = listOf(
+                Question(
+                    id = 1,
+                    questionText = "15 + 8 bằng mấy?",
+                    options = listOf("21", "23", "25", "20"),
+                    correctOptionIndex = 1
+                ),
+                Question(
+                    id = 2,
+                    questionText = "1 con bò có 4 chân, hỏi 3 con bò có mấy chân?",
+                    options = listOf("12 chân", "10 chân", "8 chân", "14 chân"),
+                    correctOptionIndex = 0
+                ),
+                Question(
+                    id = 3,
+                    questionText = "Mẹ mua 12 quả cam, ăn hết 4 quả. Hỏi mẹ còn lại mấy quả cam?",
+                    options = listOf("6 quả", "7 quả", "8 quả", "9 quả"),
+                    correctOptionIndex = 2
+                )
+            )
+        ),
+        "IQ Test" to QuizItem(
+            id = "4",
+            title = "IQ Test",
+            subject = "Logic",
+            difficulty = "Medium",
+            subtitle = "3 questions • +200 XP",
+            questions = listOf(
+                Question(
+                    id = 1,
+                    questionText = "Số tiếp theo trong dãy số là gì: 2, 4, 8, 16, ?",
+                    options = listOf("24", "32", "30", "64"),
+                    correctOptionIndex = 1
+                ),
+                Question(
+                    id = 2,
+                    questionText = "Cái gì có cổ nhưng không có đầu?",
+                    options = listOf("Cái áo", "Cái chai", "Cái ghế", "Cái quạt"),
+                    correctOptionIndex = 1
+                ),
+                Question(
+                    id = 3,
+                    questionText = "Trái đất quay quanh mặt trời mất bao nhiêu ngày (khoảng)?",
+                    options = listOf("365 ngày", "30 ngày", "24 giờ", "7 ngày"),
+                    correctOptionIndex = 0
+                )
+            )
         )
     )
 
