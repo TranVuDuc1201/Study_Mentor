@@ -36,10 +36,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.study_mentor.ui.theme.PrimaryBlue
 
@@ -47,7 +49,8 @@ import com.example.study_mentor.ui.theme.PrimaryBlue
 fun MainScreen(
     authViewModel: AuthViewModel = viewModel(),
     chatViewModel: ChatViewModel = viewModel(),
-    libraryViewModel: LibraryViewModel = viewModel()
+    libraryViewModel: LibraryViewModel = viewModel(),
+    quizViewModel: QuizViewModel = viewModel()
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -55,7 +58,7 @@ fun MainScreen(
     val isAskAi = currentRoute == "ask_ai"
     val chatUiState by chatViewModel.uiState.collectAsState()
 
-    val hideBottomBarRoutes = listOf("login", "register")
+    val hideBottomBarRoutes = listOf("login", "register", "quiz_taking/{quizTitle}", "quiz_result")
     val shouldShowBottomBar = currentRoute !in hideBottomBarRoutes
 
     Scaffold(
@@ -95,7 +98,36 @@ fun MainScreen(
                     }
                 )
             }
-            composable("practice") { PracticeScreen() }
+            composable("practice") { 
+                PracticeScreen(
+                    onStartQuiz = { quizTitle ->
+                        navController.navigate("quiz_taking/${java.net.URLEncoder.encode(quizTitle, "UTF-8")}")
+                    }
+                ) 
+            }
+
+            composable(
+                route = "quiz_taking/{quizTitle}",
+                arguments = listOf(navArgument("quizTitle") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val quizTitle = backStackEntry.arguments?.getString("quizTitle") ?: "Quadratic Equations"
+                val decodedTitle = java.net.URLDecoder.decode(quizTitle, "UTF-8")
+                QuizTakingScreen(
+                    quizTitle = decodedTitle,
+                    viewModel = quizViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToResult = { navController.navigate("quiz_result") }
+                )
+            }
+
+            composable("quiz_result") {
+                QuizResultScreen(
+                    viewModel = quizViewModel,
+                    onFinish = {
+                        navController.popBackStack("practice", inclusive = false)
+                    }
+                )
+            }
 
             composable("ask_ai") { backStackEntry ->
                 val previousEntry = navController.previousBackStackEntry

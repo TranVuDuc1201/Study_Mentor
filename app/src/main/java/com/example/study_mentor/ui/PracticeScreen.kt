@@ -40,7 +40,9 @@ import com.example.study_mentor.ui.theme.PrimaryBlue
 import com.example.study_mentor.ui.theme.SecondaryGreen
 
 @Composable
-fun PracticeScreen() {
+fun PracticeScreen(
+    onStartQuiz: (String) -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -77,7 +79,6 @@ fun PracticeScreen() {
                 .padding(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Using Star as a fallback for the Fire icon
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = "Streak",
@@ -103,7 +104,7 @@ fun PracticeScreen() {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "4 quizzes",
+                text = "2 quizzes",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray
             )
@@ -115,15 +116,17 @@ fun PracticeScreen() {
                 title = "Quadratic Equations",
                 subject = "Math",
                 difficulty = "Medium",
-                subtitle = "10 questions • +150 XP",
-                icon = Icons.Outlined.Create
+                subtitle = "3 questions • +150 XP",
+                icon = Icons.Outlined.Create,
+                onStartClick = { onStartQuiz("Quadratic Equations") }
             )
             QuizCard(
                 title = "Cellular Respiration",
                 subject = "Biology",
                 difficulty = "Hard",
-                subtitle = "15 questions • +200 XP",
-                icon = Icons.Outlined.Create
+                subtitle = "3 questions • +200 XP",
+                icon = Icons.Outlined.Create,
+                onStartClick = { onStartQuiz("Cellular Respiration") }
             )
         }
         
@@ -138,7 +141,8 @@ fun QuizCard(
     subject: String,
     difficulty: String,
     subtitle: String,
-    icon: ImageVector
+    icon: ImageVector,
+    onStartClick: () -> Unit
 ) {
     Card(
         shape = MaterialTheme.shapes.medium,
@@ -216,13 +220,13 @@ fun QuizCard(
                     )
                 }
                 
-                // Blue Sign up Button
+                // Start Quiz Button
                 Button(
-                    onClick = { /* TODO */ },
+                    onClick = onStartClick,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                     shape = MaterialTheme.shapes.small
                 ) {
-                    Text("Sign up to play", fontWeight = FontWeight.Bold)
+                    Text("Start Quiz", fontWeight = FontWeight.Bold)
                 }
             }
         }
