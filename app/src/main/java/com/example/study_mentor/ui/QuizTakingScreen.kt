@@ -45,6 +45,11 @@ import com.example.study_mentor.data.Quiz
 import com.example.study_mentor.data.QuizItem
 import com.example.study_mentor.ui.theme.BackgroundOffWhite
 import com.example.study_mentor.ui.theme.PrimaryBlue
+import com.google.firebase.auth.FirebaseAuth
+import com.example.study_mentor.data.QuizResultRepository
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.study_mentor.data.UserStatisticsRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +59,7 @@ fun QuizTakingScreen(
     onNavigateToResult: (quizTitle: String, score: Int, totalQuestions: Int, xpEarned: Int) -> Unit
 ) {
     val questions = quiz.items
-
+    val coroutineScope = rememberCoroutineScope()
     if (questions.isEmpty()) {
         Scaffold(
             topBar = {
@@ -264,25 +269,107 @@ fun QuizTakingScreen(
 
                 Button(
                     onClick = {
-                        saveCurrentAnswer()
-
                         if (isLastQuestion) {
-                            val score = calculateScore()
-                            val xpEarned = if (questions.isNotEmpty()) {
-                                ((score.toFloat() / questions.size) * quiz.xpReward)
-                                    .toInt()
+
+                            val uid = FirebaseAuth
+                                .getInstance()
+                                .currentUser
+                                ?.uid
+
+                            if (uid != null) {
+
+                                var score = 0
+
+                                val answerList = quiz.items.mapIndexed { index, item ->
+                                    val userAnswer = answers[index] ?: ""
+
+                                    val isCorrect = when (item.type) {
+                                        "multiple_choice" -> {
+                                            val selectedIndex =
+                                                answers[index]?.toIntOrNull()
+
+                                            selectedIndex == item.correctIndex
+                                        }
+
+                                        "short_answer",
+                                        "fill_blank" -> {
+                                            userAnswer.trim()
+                                                .equals(
+                                                    item.answer.trim(),
+                                                    ignoreCase = true
+                                                )
+                                        }
+
+                                        else -> false
+                                    }
+
+                                    if (isCorrect) {
+                                        score++
+                                    }
+
+                                    mapOf<String, Any?>(
+                                        "questionIndex" to index,
+                                        "question" to item.prompt,
+                                        "userAnswer" to userAnswer,
+                                        "correctAnswer" to when (item.type) {
+                                            "multiple_choice" ->
+                                                item.options.getOrNull(item.correctIndex) ?: ""
+
+                                            else ->
+                                                item.answer
+                                        },
+                                        "isCorrect" to isCorrect
+                                    )
+                                }
+
+                                val totalQuestions = quiz.items.size
+                                val xpEarned = quiz.xpReward
+
+                                coroutineScope.launch {
+                                    try {
+                                        QuizResultRepository.saveQuizResult(
+                                            uid = uid,
+                                            quizId = quiz.quizId,
+                                            quizTitle = quiz.title,
+                                            subject = quiz.subject,
+                                            topic = quiz.topic,
+                                            difficulty = quiz.difficulty,
+                                            score = score,
+                                            totalQuestions = totalQuestions,
+                                            xpEarned = xpEarned,
+                                            answers = answerList
+                                        )
+
+                                        val statsRepository = UserStatisticsRepository()
+                                        statsRepository.recordQuizResult(
+                                            correctAnswers = score,
+                                            totalQuestions = totalQuestions
+                                        )
+
+                                        onNavigateToResult(
+                                            quiz.title,
+                                            score,
+                                            totalQuestions,
+                                            xpEarned
+                                        )
+
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+
                             } else {
-                                0
+                                onNavigateBack()
                             }
 
-                            onNavigateToResult(
-                                quiz.title,
-                                score,
-                                questions.size,
-                                xpEarned
-                            )
                         } else {
+                            // Save current answer
+                            saveCurrentAnswer()
+
+                            // Go to next question
                             currentIndex++
+
+                            // Load answer of the new question
                             loadCurrentTextAnswer()
                         }
                     },
@@ -290,9 +377,14 @@ fun QuizTakingScreen(
                         containerColor = PrimaryBlue
                     )
                 ) {
-                    Text(if (isLastQuestion) "Submit Quiz" else "Next")
-                }
-            }
+                    Text(
+                        if (isLastQuestion) {
+                            "Submit Quiz"
+                        } else {
+                            "Next"
+                        }
+                    )
+                }}
         }
     }
 }

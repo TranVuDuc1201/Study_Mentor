@@ -236,55 +236,55 @@ fun PracticeScreen(
             }
         }
 
-        Column {
-            Text(
-                text = "Today's Challenges",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "4 quizzes",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            QuizCard(
-                title = "Quadratic Equations",
-                subject = "Math",
-                difficulty = "Medium",
-                subtitle = "3 questions • +150 XP",
-                icon = Icons.Outlined.Create,
-                onStartClick = { onStartQuiz("Quadratic Equations") }
-            )
-            QuizCard(
-                title = "Cellular Respiration",
-                subject = "Biology",
-                difficulty = "Hard",
-                subtitle = "3 questions • +200 XP",
-                icon = Icons.Outlined.Create,
-                onStartClick = { onStartQuiz("Cellular Respiration") }
-            )
-            QuizCard(
-                title = "Toán Lớp 2",
-                subject = "Tiểu học",
-                difficulty = "Easy",
-                subtitle = "3 questions • +100 XP",
-                icon = Icons.Outlined.Create,
-                onStartClick = { onStartQuiz("Toán Lớp 2") }
-            )
-            QuizCard(
-                title = "IQ Test",
-                subject = "Logic",
-                difficulty = "Medium",
-                subtitle = "3 questions • +200 XP",
-                icon = Icons.Outlined.Create,
-                onStartClick = { onStartQuiz("IQ Test") }
-            )
-        }
-
+//        Column {
+//            Text(
+//                text = "Today's Challenges",
+//                style = MaterialTheme.typography.titleLarge,
+//                color = MaterialTheme.colorScheme.onBackground
+//            )
+//            Spacer(modifier = Modifier.height(4.dp))
+//            Text(
+//                text = "4 quizzes",
+//                style = MaterialTheme.typography.bodyMedium,
+//                color = Color.Gray
+//            )
+//        }
+//
+//        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+//            QuizCard(
+//                title = "Quadratic Equations",
+//                subject = "Math",
+//                difficulty = "Medium",
+//                subtitle = "3 questions • +150 XP",
+//                icon = Icons.Outlined.Create,
+//                onStartClick = { onStartQuiz("Quadratic Equations") }
+//            )
+//            QuizCard(
+//                title = "Cellular Respiration",
+//                subject = "Biology",
+//                difficulty = "Hard",
+//                subtitle = "3 questions • +200 XP",
+//                icon = Icons.Outlined.Create,
+//                onStartClick = { onStartQuiz("Cellular Respiration") }
+//            )
+//            QuizCard(
+//                title = "Toán Lớp 2",
+//                subject = "Tiểu học",
+//                difficulty = "Easy",
+//                subtitle = "3 questions • +100 XP",
+//                icon = Icons.Outlined.Create,
+//                onStartClick = { onStartQuiz("Toán Lớp 2") }
+//            )
+//            QuizCard(
+//                title = "IQ Test",
+//                subject = "Logic",
+//                difficulty = "Medium",
+//                subtitle = "3 questions • +200 XP",
+//                icon = Icons.Outlined.Create,
+//                onStartClick = { onStartQuiz("IQ Test") }
+//            )
+//        }
+//
         Spacer(modifier = Modifier.height(80.dp))
     }
 
