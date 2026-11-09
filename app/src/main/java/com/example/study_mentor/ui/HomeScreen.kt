@@ -148,7 +148,8 @@ fun HomeScreen(
                 }
             }
         }
-
+        // Learning Progress Dashboard
+        ProgressDashboardSection()
         // Ask AI section
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
