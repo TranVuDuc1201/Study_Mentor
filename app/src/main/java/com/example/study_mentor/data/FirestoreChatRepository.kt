@@ -10,48 +10,37 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 /**
- * Repository for Question History & Personal Library.
- *
- * Firestore structure:
- * users/{uid}/chat_sessions/{sessionId}
- * users/{uid}/chat_sessions/{sessionId}/messages/{messageId}
+ * Repository for managing chat sessions and message history in Cloud Firestore.
+ * Structure: users/{uid}/chat_sessions/{sessionId}/messages/{messageId}
  */
 class FirestoreChatRepository(
-    private val firestore: FirebaseFirestore =
-        FirebaseFirestore.getInstance()
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
 
-    // 1. Tao cuoc tro chuyen moi
-    suspend fun createNewSession(
-        uid: String,
-        title: String
-    ): String {
-
+    /**
+     * Creates a new chat session document under users/{uid}/chat_sessions/
+     * and returns the auto-generated session ID.
+     */
+    suspend fun createNewSession(uid: String, title: String): String {
         val sessionDoc = firestore.collection("users")
             .document(uid)
             .collection("chat_sessions")
             .document()
 
         val sessionId = sessionDoc.id
-
         val session = ChatSession(
             id = sessionId,
             title = title,
             createdAt = System.currentTimeMillis()
         )
-
         sessionDoc.set(session).await()
-
         return sessionId
     }
 
-    // 2. Luu cau hoi va cau tra loi AI
-    suspend fun saveMessage(
-        uid: String,
-        sessionId: String,
-        message: ChatMessage
-    ) {
-
+    /**
+     * Saves a ChatMessage into the subcollection users/{uid}/chat_sessions/{sessionId}/messages/{messageId}.
+     */
+    suspend fun saveMessage(uid: String, sessionId: String, message: ChatMessage) {
         val messagesCol = firestore.collection("users")
             .document(uid)
             .collection("chat_sessions")
@@ -64,95 +53,68 @@ class FirestoreChatRepository(
             messagesCol.document()
         }
 
-        val toSave = if (message.id.isBlank()) {
-            message.copy(id = messageDoc.id)
-        } else {
-            message
-        }
-
+        val toSave = if (message.id.isBlank()) message.copy(id = messageDoc.id) else message
         messageDoc.set(toSave).await()
     }
 
-    // 3. Lay toan bo lich su cau hoi
-    fun getChatSessions(
-        uid: String
-    ): Flow<List<ChatSession>> = callbackFlow {
-
+    /**
+     * Retrieves all chat sessions for the specified user ordered by createdAt descending.
+     */
+    fun getChatSessions(uid: String): Flow<List<ChatSession>> = callbackFlow {
         val query = firestore.collection("users")
             .document(uid)
             .collection("chat_sessions")
-            .orderBy(
-                "createdAt",
-                Query.Direction.DESCENDING
-            )
+            .orderBy("createdAt", Query.Direction.DESCENDING)
 
-        val registration = query.addSnapshotListener {
-                snapshot, error ->
-
+        val registration = query.addSnapshotListener { snapshot, error ->
             if (error != null) {
                 close(error)
                 return@addSnapshotListener
             }
-
-            val sessions = snapshot?.documents?.mapNotNull {
-                doc ->
-                doc.toObject(ChatSession::class.java)
-                    ?.copy(id = doc.id)
+            val sessions = snapshot?.documents?.mapNotNull { doc ->
+                doc.toObject(ChatSession::class.java)?.copy(id = doc.id)
             } ?: emptyList()
-
             trySend(sessions)
         }
 
-        awaitClose {
-            registration.remove()
-        }
+        awaitClose { registration.remove() }
     }
 
-    // 4. Lay tin nhan trong mot cuoc tro chuyen
-    fun getMessagesForSession(
-        uid: String,
-        sessionId: String
-    ): Flow<List<ChatMessage>> = callbackFlow {
-
+    /**
+     * Retrieves all messages for a given session ordered chronologically by timestamp ascending.
+     */
+    fun getMessagesForSession(uid: String, sessionId: String): Flow<List<ChatMessage>> = callbackFlow {
         val query = firestore.collection("users")
             .document(uid)
             .collection("chat_sessions")
             .document(sessionId)
             .collection("messages")
-            .orderBy(
-                "timestamp",
-                Query.Direction.ASCENDING
-            )
+            .orderBy("timestamp", Query.Direction.ASCENDING)
 
-        val registration = query.addSnapshotListener {
-                snapshot, error ->
-
+        val registration = query.addSnapshotListener { snapshot, error ->
             if (error != null) {
                 close(error)
                 return@addSnapshotListener
             }
-
-            val messages = snapshot?.documents?.mapNotNull {
-                doc ->
-                doc.toObject(ChatMessage::class.java)
-                    ?.copy(id = doc.id)
+            val messages = snapshot?.documents?.mapNotNull { doc ->
+                doc.toObject(ChatMessage::class.java)?.copy(id = doc.id)
             } ?: emptyList()
-
             trySend(messages)
         }
 
-        awaitClose {
-            registration.remove()
-        }
+        awaitClose { registration.remove() }
     }
 
-    // 5. Luu hoac bo luu cuoc tro chuyen
+    // PERSONAL LIBRARY BACKEND - NEW FUNCTIONS
+
+    /**
+     * Save or remove a chat session from Personal Library.
+     */
     suspend fun setBookmarked(
         uid: String,
         sessionId: String,
         bookmarked: Boolean
     ) {
-
         firestore.collection("users")
             .document(uid)
             .collection("chat_sessions")
@@ -161,16 +123,14 @@ class FirestoreChatRepository(
             .await()
     }
 
-    // 6. Lay danh sach cuoc tro chuyen da luu
+    /**
+     * Retrieve bookmarked sessions for the current user.
+     */
     fun getBookmarkedSessions(
         uid: String
     ): Flow<List<ChatSession>> {
-
         return getChatSessions(uid).map { sessions ->
-
-            sessions.filter { session ->
-                session.bookmarked
-            }
+            sessions.filter { it.bookmarked }
         }
     }
 }
