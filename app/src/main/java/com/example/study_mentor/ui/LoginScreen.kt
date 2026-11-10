@@ -5,11 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
@@ -19,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -33,8 +36,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.study_mentor.ui.theme.PrimaryBlue
 
-private val AuthBackground = Color(0xFFF4F7FD)
-private val AuthText = Color(0xFF172642)
+private val AuthBackground = Color(0xFFF8FAFC)
+private val AuthText = Color(0xFF0F172A)
 private val AuthMuted = Color(0xFF64748B)
 
 @Composable
@@ -62,85 +65,183 @@ fun LoginScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(AuthBackground)
-            .imePadding().verticalScroll(rememberScrollState())
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AuthBackground)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
     ) {
+        // Modern Immersive Gradient Header with Floating Icon Badge
         Box(
-            modifier = Modifier.fillMaxWidth().background(
-                Brush.linearGradient(listOf(PrimaryBlue, Color(0xFF645BDA)))
-            ).padding(start = 16.dp, end = 24.dp, top = 18.dp, bottom = 34.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(PrimaryBlue, Color(0xFF4F46E5), Color(0xFF6366F1))
+                    )
+                )
+                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 48.dp)
         ) {
             Column {
-                IconButton(onClick = onNavigateBack, enabled = !state.isLoading) {
-                    Icon(Icons.Default.ArrowBack, "Go back", tint = Color.White)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        enabled = !state.isLoading,
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, "Go back", tint = Color.White)
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(alpha = 0.2f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("AI Study Mentor", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-                Spacer(Modifier.height(16.dp))
-                Text("STUDY MENTOR", color = Color.White.copy(alpha = .85f),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+
+                Spacer(Modifier.height(24.dp))
+                
+                Text(
+                    text = "Welcome Back! 👋",
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp
+                )
                 Spacer(Modifier.height(8.dp))
-                Text("Welcome back!", color = Color.White,
-                    fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text("Sign in to pick up where you left off.",
-                    color = Color.White.copy(alpha = .9f), fontSize = 15.sp)
+                Text(
+                    text = "Sign in to continue your intelligent learning journey.",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp
+                )
             }
         }
+
+        // Floating Card with inputs
         Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp)
-                .offset(y = (-14).dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .offset(y = (-28.dp))
+                .shadow(elevation = 12.dp, shape = RoundedCornerShape(28.dp), spotColor = Color(0x22000000)),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(Modifier.fillMaxWidth().padding(22.dp)) {
-                Text("Log in", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = AuthText)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Text(
+                    text = "Sign In",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthText
+                )
                 Spacer(Modifier.height(4.dp))
-                Text("Enter your account details below", color = AuthMuted, fontSize = 14.sp)
-                Spacer(Modifier.height(22.dp))
+                Text(
+                    text = "Enter your credentials to access your account",
+                    color = AuthMuted,
+                    fontSize = 14.sp
+                )
+
+                Spacer(Modifier.height(24.dp))
+
                 state.errorMessage?.let {
-                    Surface(color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(12.dp)) {
-                        Text(it, color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.fillMaxWidth().padding(12.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            fontSize = 14.sp
+                        )
                     }
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(16.dp))
                 }
+
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it; viewModel.clearError() },
                     label = { Text("Email address") },
                     placeholder = { Text("you@example.com") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryBlue) },
                     isError = emailError != null,
                     supportingText = { emailError?.let { Text(it) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                    singleLine = true, enabled = !state.isLoading,
-                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                        disabledContainerColor = Color(0xFFF8FAFC)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(12.dp))
+
+                Spacer(Modifier.height(14.dp))
+
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it; viewModel.clearError() },
                     label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryBlue) },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password")
+                            Icon(
+                                if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                tint = AuthMuted
+                            )
                         }
                     },
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                     isError = passwordError != null,
                     supportingText = { passwordError?.let { Text(it) } },
-                    singleLine = true, enabled = !state.isLoading,
-                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                        disabledContainerColor = Color(0xFFF8FAFC)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                TextButton(onClick = { viewModel.clearError(); showResetDialog = true },
-                    enabled = !state.isLoading, modifier = Modifier.align(Alignment.End)) {
-                    Text("Forgot password?", color = PrimaryBlue)
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    TextButton(
+                        onClick = { viewModel.clearError(); showResetDialog = true },
+                        enabled = !state.isLoading,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Text("Forgot password?", color = PrimaryBlue, fontWeight = FontWeight.SemiBold)
+                    }
                 }
-                Spacer(Modifier.height(14.dp))
+
+                Spacer(Modifier.height(8.dp))
+
                 Button(
                     onClick = {
                         submitted = true
@@ -151,29 +252,38 @@ fun LoginScreen(
                     },
                     enabled = !state.isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().height(54.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
                 ) {
                     if (state.isLoading) {
-                        CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(Modifier.size(24.dp), color = Color.White, strokeWidth = 2.5.dp)
                     } else {
-                        Text("Log in", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Sign In", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
                 }
             }
         }
+
+        Spacer(Modifier.height(8.dp))
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 28.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 28.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("New to Study Mentor? ", color = AuthMuted)
-            Text("Create account", color = PrimaryBlue, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable(enabled = !state.isLoading) { onNavigateToRegister() })
+            Text("Don't have an account? ", color = AuthMuted)
+            Text(
+                "Create account",
+                color = PrimaryBlue,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(enabled = !state.isLoading) { onNavigateToRegister() }
+            )
         }
-        Text("Learn smarter, every day.", color = AuthMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp))
     }
 
     if (showResetDialog) {
@@ -182,34 +292,48 @@ fun LoginScreen(
         val resetError = if (resetSubmitted) AuthValidation.emailError(resetEmail) else null
         AlertDialog(
             onDismissRequest = { if (!state.isLoading) showResetDialog = false },
-            shape = RoundedCornerShape(22.dp),
-            title = { Text("Reset your password") },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Reset Password", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Enter your email address and we'll send a password reset link.")
-                    Spacer(Modifier.height(14.dp))
+                    Text("Enter your account email address and we'll send you a password reset link.", color = AuthMuted)
+                    Spacer(Modifier.height(16.dp))
                     OutlinedTextField(
-                        value = resetEmail, onValueChange = { resetEmail = it },
-                        label = { Text("Email address") }, singleLine = true,
+                        value = resetEmail,
+                        onValueChange = { resetEmail = it },
+                        label = { Text("Email address") },
+                        singleLine = true,
                         isError = resetError != null,
                         supportingText = { resetError?.let { Text(it) } },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
-                TextButton(enabled = !state.isLoading, onClick = {
-                    resetSubmitted = true
-                    if (AuthValidation.emailError(resetEmail) == null) {
-                        viewModel.resetPassword(resetEmail)
-                        showResetDialog = false
-                    }
-                }) { Text("Send reset link") }
+                Button(
+                    enabled = !state.isLoading,
+                    onClick = {
+                        resetSubmitted = true
+                        if (AuthValidation.emailError(resetEmail) == null) {
+                            viewModel.resetPassword(resetEmail)
+                            showResetDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Send link")
+                }
             },
             dismissButton = {
-                TextButton(enabled = !state.isLoading,
-                    onClick = { showResetDialog = false }) { Text("Cancel") }
+                TextButton(
+                    enabled = !state.isLoading,
+                    onClick = { showResetDialog = false }
+                ) {
+                    Text("Cancel", color = AuthMuted)
+                }
             }
         )
     }
