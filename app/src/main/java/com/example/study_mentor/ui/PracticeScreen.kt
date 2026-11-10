@@ -57,16 +57,22 @@ import com.example.study_mentor.ui.theme.BackgroundOffWhite
 import com.example.study_mentor.ui.theme.PrimaryBlue
 import com.example.study_mentor.ui.theme.SecondaryGreen
 
+
+
+
 @Composable
 fun PracticeScreen(
     authViewModel: AuthViewModel = viewModel(),
     quizViewModel: QuizViewModel = viewModel(),
+    statsViewModel: UserStatisticsViewModel = viewModel(),
     onStartGeneratedQuiz: (Quiz) -> Unit = {},
     onStartQuiz: (String) -> Unit = {}
 ) {
     val authState by authViewModel.authState.collectAsState()
     val quizState by quizViewModel.state.collectAsState()
     val uid = authState.currentUser?.uid
+
+    val currentStreak by statsViewModel.dayStreak.collectAsState()
 
     LaunchedEffect(uid) {
         quizViewModel.observe(uid)
@@ -125,7 +131,7 @@ fun PracticeScreen(
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
-                    text = "14-Day Streak! Complete today's quiz to keep it going",
+                    text = "$currentStreak-Day Streak! Complete today's quiz to keep it going",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -180,7 +186,7 @@ fun PracticeScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
-                        text = "Tự tạo Quiz bằng AI",
+                        text = "Create a Quiz with AI",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -188,9 +194,9 @@ fun PracticeScreen(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (quizState.isGenerating) {
-                            "Đang tạo quiz, vui lòng đợi..."
+                            "Generating quiz, please wait..."
                         } else {
-                            "Tạo Quiz theo chủ đề hoặc từ đoạn chat"
+                            "Create a quiz from a topic or a chat conversation"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.8f)
@@ -236,55 +242,6 @@ fun PracticeScreen(
             }
         }
 
-//        Column {
-//            Text(
-//                text = "Today's Challenges",
-//                style = MaterialTheme.typography.titleLarge,
-//                color = MaterialTheme.colorScheme.onBackground
-//            )
-//            Spacer(modifier = Modifier.height(4.dp))
-//            Text(
-//                text = "4 quizzes",
-//                style = MaterialTheme.typography.bodyMedium,
-//                color = Color.Gray
-//            )
-//        }
-//
-//        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-//            QuizCard(
-//                title = "Quadratic Equations",
-//                subject = "Math",
-//                difficulty = "Medium",
-//                subtitle = "3 questions • +150 XP",
-//                icon = Icons.Outlined.Create,
-//                onStartClick = { onStartQuiz("Quadratic Equations") }
-//            )
-//            QuizCard(
-//                title = "Cellular Respiration",
-//                subject = "Biology",
-//                difficulty = "Hard",
-//                subtitle = "3 questions • +200 XP",
-//                icon = Icons.Outlined.Create,
-//                onStartClick = { onStartQuiz("Cellular Respiration") }
-//            )
-//            QuizCard(
-//                title = "Toán Lớp 2",
-//                subject = "Tiểu học",
-//                difficulty = "Easy",
-//                subtitle = "3 questions • +100 XP",
-//                icon = Icons.Outlined.Create,
-//                onStartClick = { onStartQuiz("Toán Lớp 2") }
-//            )
-//            QuizCard(
-//                title = "IQ Test",
-//                subject = "Logic",
-//                difficulty = "Medium",
-//                subtitle = "3 questions • +200 XP",
-//                icon = Icons.Outlined.Create,
-//                onStartClick = { onStartQuiz("IQ Test") }
-//            )
-//        }
-//
         Spacer(modifier = Modifier.height(80.dp))
     }
 
@@ -292,7 +249,7 @@ fun PracticeScreen(
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
             title = {
-                Text("Tạo Quiz bằng AI", fontWeight = FontWeight.Bold)
+                Text("Create a Quiz with AI", fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(
@@ -301,7 +258,7 @@ fun PracticeScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Chọn cách bạn muốn tạo Quiz:")
+                    Text("Choose how you want to create a Quiz:")
 
                     Row(
                         modifier = Modifier
@@ -314,9 +271,9 @@ fun PracticeScreen(
                             onClick = { selectedMode = "topic" }
                         )
                         Column {
-                            Text("Theo chủ đề", fontWeight = FontWeight.SemiBold)
+                            Text("By Topic", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Nhập chủ đề muốn ôn tập.",
+                                "Enter a topic you want to review.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
                             )
@@ -328,8 +285,8 @@ fun PracticeScreen(
                             value = topic,
                             onValueChange = { topic = it },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Chủ đề") },
-                            placeholder = { Text("Ví dụ: Kotlin, Android, Database") },
+                            label = { Text("Topic") },
+                            placeholder = { Text("e.g., Kotlin, Android, Database") },
                             singleLine = true
                         )
                     }
@@ -345,9 +302,9 @@ fun PracticeScreen(
                             onClick = { selectedMode = "chat" }
                         )
                         Column {
-                            Text("Từ đoạn chat với AI", fontWeight = FontWeight.SemiBold)
+                            Text("From an AI Chat Conversation", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Chọn một cuộc trò chuyện đã có.",
+                                "Select an existing conversation.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
                             )
@@ -364,13 +321,13 @@ fun PracticeScreen(
                                 ) {
                                     CircularProgressIndicator()
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("Đang tải cuộc trò chuyện...")
+                                    Text("Loading conversations...")
                                 }
                             }
 
                             quizState.chatSessions.isEmpty() -> {
                                 Text(
-                                    "Không tìm thấy cuộc trò chuyện nào.",
+                                    "No conversations found.",
                                     color = Color.Gray
                                 )
                             }
@@ -389,7 +346,7 @@ fun PracticeScreen(
 
                     if (uid == null) {
                         Text(
-                            "Vui lòng đăng nhập để sử dụng tính năng này.",
+                            "Please log in to use this feature.",
                             color = MaterialTheme.colorScheme.error
                         )
                     }
@@ -415,12 +372,12 @@ fun PracticeScreen(
                         showCreateDialog = false
                     }
                 ) {
-                    Text(if (quizState.isGenerating) "Đang tạo..." else "Tạo Quiz")
+                    Text(if (quizState.isGenerating) "Generating..." else "Create Quiz")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) {
-                    Text("Hủy")
+                    Text("Cancel")
                 }
             }
         )
