@@ -76,6 +76,7 @@ fun PracticeScreen(
 
     LaunchedEffect(uid) {
         quizViewModel.observe(uid)
+        statsViewModel.observeUserStatistics(uid)
     }
 
     var showCreateDialog by remember { mutableStateOf(false) }
