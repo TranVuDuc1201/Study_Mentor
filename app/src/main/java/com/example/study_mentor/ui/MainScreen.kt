@@ -134,6 +134,12 @@ fun MainScreen(
                         navController.navigate("register")
                     },
 
+                    onNavigateToProfile = {
+                        navController.navigate("profile") {
+                            launchSingleTop = true
+                        }
+                    },
+
                     onNavigateToAskAI = {
                         navController.navigate("ask_ai")
                     },
