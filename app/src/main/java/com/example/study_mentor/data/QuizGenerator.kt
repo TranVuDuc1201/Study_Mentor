@@ -296,7 +296,7 @@ correctIndex is 0-based.
 Create a practice quiz for a $educationLevel student based ONLY on the following conversation: "$sourceTitle".
 Use the student's questions and the AI's answers as the source of facts.
 Do not introduce unrelated topics or facts that are not supported by the conversation.
-Write in the same language as the student's questions.
+Write all quiz titles, questions, options, answers and explanations in Vietnamese. Keep JSON keys and enum values in English.
 $COMMON_RULES
 If a question says it is a problem shown in a photo, base your quiz question on the content of its answer.
 
@@ -308,7 +308,7 @@ $sourceText
 
     private fun buildTopicPrompt(educationLevel: String, topic: String): String = """
 Create a practice quiz for a $educationLevel student about this topic: "$topic".
-Write in the same language as the topic.
+Write all quiz titles, questions, options, answers and explanations in Vietnamese. Keep JSON keys and enum values in English.
 $COMMON_RULES
 
 $QUIZ_FORMAT
