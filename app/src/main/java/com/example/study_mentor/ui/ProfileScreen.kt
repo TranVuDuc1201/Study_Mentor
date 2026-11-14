@@ -1,5 +1,6 @@
 package com.example.study_mentor.ui
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,10 +38,6 @@ private val ProfileBlue = Color(0xFF4263EB)
 private val ProfilePurple = Color(0xFF7950F2)
 private val ProfileBackground = Color(0xFFF6F7FC)
 
-/**
- * Drop-in profile screen for the existing Study_Mentor AuthViewModel.
- * The parent navigation owner should pass its own back/login callbacks.
- */
 @Composable
 fun ProfileScreen(
     onNavigateBack: () -> Unit,
@@ -183,6 +181,83 @@ fun ProfileScreen(
                 }
             }
 
+            Spacer(Modifier.height(22.dp))
+            ProfileSectionTitle("STUDY REMINDER")
+            Spacer(Modifier.height(8.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    val context = LocalContext.current
+                    val prefs = remember { context.getSharedPreferences("study_prefs", Context.MODE_PRIVATE) }
+                    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean("reminder_enabled", false)) }
+                    var reminderHour by remember { mutableStateOf(prefs.getInt("reminder_hour", 8)) }
+                    var reminderMinute by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
+                    var showTimePicker by remember { mutableStateOf(false) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Daily Study Reminder", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Spacer(Modifier.height(2.dp))
+                            val timeStr = String.format("%02d:%02d", reminderHour, reminderMinute)
+                            Text("Notify at $timeStr daily", color = Color.Gray, fontSize = 13.sp)
+                        }
+                        Switch(
+                            checked = reminderEnabled,
+                            onCheckedChange = { enabled ->
+                                reminderEnabled = enabled
+                                prefs.edit().putBoolean("reminder_enabled", enabled).apply()
+                                val timeStr = String.format("%02d:%02d", reminderHour, reminderMinute)
+                                if (enabled) {
+                                    StudyReminderManager.scheduleReminder(context, reminderHour, reminderMinute)
+                                    scope.launch { snackbarHostState.showSnackbar("Study reminder set for $timeStr daily!") }
+                                } else {
+                                    StudyReminderManager.cancelReminder(context)
+                                    scope.launch { snackbarHostState.showSnackbar("Study reminder turned off.") }
+                                }
+                            }
+                        )
+                    }
+
+                    if (reminderEnabled) {
+                        Spacer(Modifier.height(12.dp))
+                        TextButton(
+                            onClick = { showTimePicker = true },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Change time", color = ProfileBlue, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    if (showTimePicker) {
+                        LaunchedEffect(Unit) {
+                            android.app.TimePickerDialog(
+                                context,
+                                { _, h, m ->
+                                    reminderHour = h
+                                    reminderMinute = m
+                                    prefs.edit().putInt("reminder_hour", h).putInt("reminder_minute", m).apply()
+                                    if (reminderEnabled) {
+                                        StudyReminderManager.scheduleReminder(context, h, m)
+                                    }
+                                    showTimePicker = false
+                                    val timeStr = String.format("%02d:%02d", h, m)
+                                    scope.launch { snackbarHostState.showSnackbar("Reminder time updated to $timeStr") }
+                                },
+                                reminderHour,
+                                reminderMinute,
+                                true
+                            ).apply {
+                                setOnCancelListener { showTimePicker = false }
+                            }.show()
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
             OutlinedButton(
                 onClick = { showLogoutDialog = true },
@@ -225,8 +300,6 @@ fun ProfileScreen(
                                     UserProfileChangeRequest.Builder()
                                         .setDisplayName(displayName.trim()).build()
                                 ).await()
-                                // The FirebaseUser instance is mutable; refresh Compose's displayed data
-                                // by navigating/recomposing, and show the new name immediately below.
                                 shownName = displayName.trim()
                                 editingName = false
                                 snackbarHostState.showSnackbar("Display name updated successfully")
@@ -248,13 +321,16 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             title = { Text("Log out?") },
-            text = { Text("You will need to sign in again to access your account.") },
+            text = { Text("Are you sure you want to log out of your account?") },
             confirmButton = {
-                TextButton(onClick = {
-                    showLogoutDialog = false
-                    viewModel.logout()
-                    onNavigateToLogin()
-                }) { Text("Log out") }
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        viewModel.logout()
+                        onNavigateToLogin()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Log out") }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
@@ -264,22 +340,29 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileSectionTitle(value: String) {
-    Text(value, modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
-        color = ProfileBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+fun ProfileSectionTitle(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.fillMaxWidth(),
+        style = MaterialTheme.typography.labelMedium,
+        color = Color.Gray,
+        fontWeight = FontWeight.Bold
+    )
 }
 
 @Composable
-private fun ProfileDetail(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-        Spacer(Modifier.height(4.dp))
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+fun ProfileDetail(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.Gray, fontSize = 14.sp)
+        Text(value, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = Color.Black)
     }
 }
 
 @Composable
-private fun ProfileAction(
+fun ProfileAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
@@ -287,18 +370,19 @@ private fun ProfileAction(
     onClick: () -> Unit
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(13.dp))
-            .background(ProfileBlue.copy(alpha = 0.09f)), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = ProfileBlue)
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(icon, contentDescription = null, tint = ProfileBlue, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = if (enabled) Color.Black else Color.Gray)
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, fontSize = 13.sp, color = Color.Gray)
+            }
         }
     }
 }
