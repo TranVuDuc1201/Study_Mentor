@@ -13,9 +13,9 @@ import java.util.UUID
 data class ChatSession(
     val id: String = "",
     val title: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val bookmarked: Boolean = false
 )
-
 /**
  * Represents an individual message in a chat session stored in Firestore.
  * Firestore document path: users/{uid}/chat_sessions/{sessionId}/messages/{messageId}

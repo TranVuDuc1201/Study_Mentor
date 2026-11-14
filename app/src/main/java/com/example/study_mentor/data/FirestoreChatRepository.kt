@@ -1,3 +1,4 @@
+
 package com.example.study_mentor.data
 
 import com.google.firebase.firestore.FirebaseFirestore
@@ -5,6 +6,7 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -101,5 +103,34 @@ class FirestoreChatRepository(
         }
 
         awaitClose { registration.remove() }
+    }
+
+    // PERSONAL LIBRARY BACKEND - NEW FUNCTIONS
+
+    /**
+     * Save or remove a chat session from Personal Library.
+     */
+    suspend fun setBookmarked(
+        uid: String,
+        sessionId: String,
+        bookmarked: Boolean
+    ) {
+        firestore.collection("users")
+            .document(uid)
+            .collection("chat_sessions")
+            .document(sessionId)
+            .update("bookmarked", bookmarked)
+            .await()
+    }
+
+    /**
+     * Retrieve bookmarked sessions for the current user.
+     */
+    fun getBookmarkedSessions(
+        uid: String
+    ): Flow<List<ChatSession>> {
+        return getChatSessions(uid).map { sessions ->
+            sessions.filter { it.bookmarked }
+        }
     }
 }
