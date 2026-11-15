@@ -65,6 +65,11 @@ fun MainScreen(
         mutableStateOf<Quiz?>(null)
     }
 
+    // Snapshot of answers submitted by the student (not placed in the navigation URL).
+    var submittedAnswers by remember {
+        mutableStateOf<List<String?>>(emptyList())
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
 
     val currentRoute = navBackStackEntry?.destination?.route
@@ -175,6 +180,7 @@ fun MainScreen(
 
                         // Save the selected Quiz
                         selectedQuiz = quiz
+                        submittedAnswers = emptyList()
 
                         // Navigate to QuizTakingScreen
                         navController.navigate("quiz_taking")
@@ -217,7 +223,10 @@ fun MainScreen(
                                 quizTitle,
                                 score,
                                 totalQuestions,
-                                xpEarned ->
+                                xpEarned,
+                                userAnswers ->
+
+                            submittedAnswers = userAnswers
 
                             val encodedTitle =
                                 java.net.URLEncoder.encode(
@@ -310,10 +319,15 @@ fun MainScreen(
 
                     xpEarned = xpEarned,
 
+                    quiz = selectedQuiz,
+
+                    selectedAnswers = submittedAnswers,
+
                     onFinish = {
 
                         // Clear the selected quiz
                         selectedQuiz = null
+                        submittedAnswers = emptyList()
 
                         // Return to Practice
                         navController.popBackStack(

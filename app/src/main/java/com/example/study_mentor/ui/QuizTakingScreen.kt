@@ -56,7 +56,13 @@ import com.example.study_mentor.data.UserStatisticsRepository
 fun QuizTakingScreen(
     quiz: Quiz,
     onNavigateBack: () -> Unit,
-    onNavigateToResult: (quizTitle: String, score: Int, totalQuestions: Int, xpEarned: Int) -> Unit
+    onNavigateToResult: (
+        quizTitle: String,
+        score: Int,
+        totalQuestions: Int,
+        xpEarned: Int,
+        userAnswers: List<String?>
+    ) -> Unit
 ) {
     val questions = quiz.items
     val coroutineScope = rememberCoroutineScope()
@@ -270,6 +276,9 @@ fun QuizTakingScreen(
                 Button(
                     onClick = {
                         if (isLastQuestion) {
+                            // Save the final text answer before scoring or saving to Firebase.
+                            saveCurrentAnswer()
+                            val submittedAnswers = answers.toList()
 
                             val uid = FirebaseAuth
                                 .getInstance()
@@ -281,12 +290,12 @@ fun QuizTakingScreen(
                                 var score = 0
 
                                 val answerList = quiz.items.mapIndexed { index, item ->
-                                    val userAnswer = answers[index] ?: ""
+                                    val userAnswer = submittedAnswers[index] ?: ""
 
                                     val isCorrect = when (item.type) {
                                         "multiple_choice" -> {
                                             val selectedIndex =
-                                                answers[index]?.toIntOrNull()
+                                                submittedAnswers[index]?.toIntOrNull()
 
                                             selectedIndex == item.correctIndex
                                         }
@@ -350,7 +359,8 @@ fun QuizTakingScreen(
                                             quiz.title,
                                             score,
                                             totalQuestions,
-                                            xpEarned
+                                            xpEarned,
+                                            submittedAnswers
                                         )
 
                                     } catch (e: Exception) {
