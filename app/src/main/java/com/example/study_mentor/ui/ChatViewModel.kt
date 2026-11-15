@@ -12,7 +12,11 @@ import com.example.study_mentor.OpenAIApiClient
 import com.example.study_mentor.data.ChatMessage
 import com.example.study_mentor.data.ChatSession
 import com.example.study_mentor.data.FirestoreChatRepository
+import com.example.study_mentor.data.UserStatisticsRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -54,8 +58,9 @@ data class ChatUiState(
 class ChatViewModel(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val repository: FirestoreChatRepository = FirestoreChatRepository()
-) : ViewModel() {
 
+) : ViewModel() {
+    private val statisticsRepository = UserStatisticsRepository()
     companion object {
         const val DEFAULT_IMAGE_PROMPT = "Solve this math problem step-by-step and explain the concepts."
     }
@@ -74,6 +79,94 @@ class ChatViewModel(
     private var isStreaming = false
     private var compressionJob: kotlinx.coroutines.Job? = null
 
+
+
+    private fun detectSubject(question: String): String {
+
+        val text = question.lowercase()
+
+        return when {
+            // Computer Science
+            listOf(
+                "programming", "algorithm", "java", "kotlin",
+                "python", "c++", "database", "sql",
+                "computer science", "data structure",
+                "graph theory", "dijkstra", "coding",
+                "software", "firestore", "firebase"
+            ).any { text.contains(it) } -> "Computer Science"
+
+            // Mathematics
+            listOf(
+                "mathematics", "math", "algebra",
+                "equation", "derivative", "integral",
+                "calculus", "geometry", "probability",
+                "matrix", "set theory"
+            ).any { text.contains(it) } -> "Mathematics"
+
+            // Physics
+            listOf(
+                "physics", "newton", "force",
+                "velocity", "acceleration", "gravity",
+                "electricity", "magnetism"
+            ).any { text.contains(it) } -> "Physics"
+
+            // Chemistry
+            listOf(
+                "chemistry", "chemical", "molecule",
+                "atom", "element", "reaction",
+                "periodic table"
+            ).any { text.contains(it) } -> "Chemistry"
+
+            // Biology
+            listOf(
+                "biology", "cell", "organism",
+                "photosynthesis", "dna", "genetics",
+                "ecosystem"
+            ).any { text.contains(it) } -> "Biology"
+
+            // English
+            listOf(
+                "english", "grammar", "vocabulary",
+                "pronunciation", "ielts", "verb",
+                "adjective", "present perfect",
+                "past simple", "essay"
+            ).any { text.contains(it) } -> "English"
+
+            // History
+            listOf(
+                "history", "historical", "war",
+                "revolution", "dynasty"
+            ).any { text.contains(it) } -> "History"
+
+            // Geography
+            listOf(
+                "geography", "climate", "continent",
+                "population", "natural resources"
+            ).any { text.contains(it) } -> "Geography"
+
+            else -> "Other"
+        }
+    }
+
+    private suspend fun updateAiStatistics(question: String) {
+        try {
+            val subject = detectSubject(question)
+
+            statisticsRepository.recordAiQuestion(subject)
+
+            Log.d(
+                "ChatStatistics",
+                "AI question recorded. Subject: $subject"
+            )
+
+        } catch (e: Exception) {
+            Log.e(
+                "ChatStatistics",
+                "Failed to update AI statistics",
+                e
+            )
+        }
+    }
     /**
      * Updates the draft text typed by the user in the input field.
      */
@@ -249,6 +342,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch {
+
             isStreaming = true
             var isFirstChunk = true
             val responseBuilder = StringBuilder()
@@ -348,9 +442,13 @@ class ChatViewModel(
                                 timestamp = System.currentTimeMillis()
                             )
                             repository.saveMessage(uid, activeSessionId, finalAiMessage)
+                            //incrementQuestionCount(uid)
                         } catch (e: Exception) {
                             Log.e("ChatViewModel", "Failed to save AI message to Firestore", e)
                         }
+                    }
+                    if (finalAiText.isNotBlank()) {
+                        updateAiStatistics(trimmedPrompt)
                     }
                 }
 
@@ -440,6 +538,7 @@ class ChatViewModel(
             if (uid != null && activeSessionId != null) {
                 try {
                     repository.saveMessage(uid, activeSessionId, userMessage)
+                    //incrementQuestionCount(uid)
                 } catch (e: Exception) {
                     Log.e("ChatViewModel", "Failed to save user message to Firestore", e)
                 }
@@ -501,9 +600,13 @@ class ChatViewModel(
                                 timestamp = System.currentTimeMillis()
                             )
                             repository.saveMessage(uid, activeSessionId, finalAiMessage)
+                            //incrementQuestionCount(uid)
                         } catch (e: Exception) {
                             Log.e("ChatViewModel", "Failed to save AI message to Firestore", e)
                         }
+                    }
+                    if (finalAiText.isNotBlank()) {
+                        updateAiStatistics(effectivePrompt)
                     }
                 }
             } catch (e: Exception) {
@@ -534,4 +637,11 @@ class ChatViewModel(
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
+
+    /** Increments the question counter shown on the Profile screen. */
+//    private fun incrementQuestionCount(uid: String) {
+//        FirebaseFirestore.getInstance().collection("users").document(uid)
+//            .collection("statistics").document("summary")
+//            .set(mapOf("totalQuestionsAsked" to FieldValue.increment(1)), SetOptions.merge())
+//    }
 }

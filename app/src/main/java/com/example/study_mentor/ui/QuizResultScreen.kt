@@ -1,6 +1,5 @@
 package com.example.study_mentor.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,14 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,38 +29,39 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.study_mentor.OpenAIApiClient
+import com.example.study_mentor.data.Quiz
 import com.example.study_mentor.ui.theme.BackgroundOffWhite
 import com.example.study_mentor.ui.theme.PrimaryBlue
 import com.example.study_mentor.ui.theme.SecondaryGreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
 fun QuizResultScreen(
-    viewModel: QuizViewModel,
+    quizTitle: String,
+    score: Int,
+    totalQuestions: Int,
+    xpEarned: Int,
+    quiz: Quiz?,
+    selectedAnswers: List<String?>,
     onFinish: () -> Unit
 ) {
-    val result by viewModel.quizResult.collectAsState()
-    val quiz by viewModel.currentQuiz.collectAsState()
-    val selectedAnswers by viewModel.selectedAnswers.collectAsState()
-
-    val aiExplanations = remember { mutableStateMapOf<Int, String>() }
-    val aiLoading = remember { mutableStateMapOf<Int, Boolean>() }
-    val scope = rememberCoroutineScope()
+    val percentage = if (totalQuestions > 0) {
+        (score.toFloat() / totalQuestions * 100).toInt()
+    } else {
+        0
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -75,220 +75,112 @@ fun QuizResultScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
 
-            // Trophy / Star Icon
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFFFEF3C7),
-                modifier = Modifier.size(80.dp)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Trophy",
-                        tint = Color(0xFFD97706),
-                        modifier = Modifier.size(44.dp)
-                    )
-                }
-            }
 
-            Text(
-                text = "Quiz Completed!",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Text(
-                text = result?.quizTitle ?: "Practice Session",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.Gray
-            )
-
-            // Score Card
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFEF3C7),
+                    modifier = Modifier.size(96.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "Score", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Quiz completed",
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Quiz Completed!",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = quizTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 2.dp
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+
                         Text(
-                            text = "${result?.score ?: 0}/${result?.totalQuestions ?: 0}",
-                            style = MaterialTheme.typography.titleLarge,
+                            text = "$percentage%",
+                            style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryBlue
                         )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "XP Earned", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "+${result?.xpEarned ?: 0}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = SecondaryGreen
-                        )
-                    }
-                }
-            }
 
-            // Review & AI Explanations Section
-            if (quiz != null && quiz!!.questions.isNotEmpty()) {
-                Text(
-                    text = "Review Answers & AI Explanations",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                quiz!!.questions.forEachIndexed { index, question ->
-                    val userAnsIndex = selectedAnswers[index]
-                    val isCorrect = userAnsIndex == question.correctOptionIndex
-                    val userAnsText = userAnsIndex?.let { question.options.getOrNull(it) } ?: "Not answered"
-                    val correctAnsText = question.options.getOrNull(question.correctOptionIndex) ?: ""
-
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Question ${index + 1}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Gray
-                                )
-                                Icon(
-                                    imageVector = if (isCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                    contentDescription = if (isCorrect) "Correct" else "Incorrect",
-                                    tint = if (isCorrect) SecondaryGreen else Color(0xFFEF4444)
-                                )
-                            }
-
-                            Text(
-                                text = question.questionText,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                            ResultValue(
+                                label = "Score",
+                                value = "$score/$totalQuestions",
+                                valueColor = PrimaryBlue
                             )
 
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = "Your answer: $userAnsText",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isCorrect) SecondaryGreen else Color(0xFFEF4444)
+                            ResultValue(
+                                label = "XP Earned",
+                                value = "+$xpEarned",
+                                valueColor = SecondaryGreen
                             )
-
-                            if (!isCorrect) {
-                                Text(
-                                    text = "Correct answer: $correctAnsText",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = SecondaryGreen,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                val explanation = aiExplanations[index]
-                                val isLoading = aiLoading[index] == true
-
-                                if (explanation != null) {
-                                    Surface(
-                                        color = Color(0xFFEFF6FF),
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.AutoAwesome, null, tint = PrimaryBlue, modifier = Modifier.size(16.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text("AI Explanation", fontWeight = FontWeight.Bold, color = PrimaryBlue, fontSize = 13.sp)
-                                            }
-                                            Spacer(Modifier.height(4.dp))
-                                            Text(explanation, fontSize = 14.sp, color = Color(0xFF1E3A8A))
-                                        }
-                                    }
-                                } else {
-                                    Button(
-                                        onClick = {
-                                            aiLoading[index] = true
-                                            scope.launch {
-                                                try {
-                                                    val prompt = """
-                                                        Question: "${question.questionText}"
-                                                        Options: ${question.options.joinToString(", ")}
-                                                        Student's wrong answer: "$userAnsText"
-                                                        Correct answer: "$correctAnsText"
-                                                        Please explain concisely why the student's answer is incorrect and why the correct answer is right. Keep it clear, friendly, and helpful.
-                                                    """.trimIndent()
-
-                                                    var resultText = ""
-                                                    OpenAIApiClient.askQuestion(prompt = prompt, maxTokens = 500).collect { chunk ->
-                                                        resultText += chunk
-                                                    }
-                                                    aiExplanations[index] = resultText.trim()
-                                                } catch (e: Exception) {
-                                                    aiExplanations[index] = "Could not generate AI explanation at this time."
-                                                } finally {
-                                                    aiLoading[index] = false
-                                                }
-                                            }
-                                        },
-                                        enabled = !isLoading,
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEEF2FF)),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        if (isLoading) {
-                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = PrimaryBlue, strokeWidth = 2.dp)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("AI is explaining...", color = PrimaryBlue, fontSize = 13.sp)
-                                        } else {
-                                            Icon(Icons.Default.AutoAwesome, null, tint = PrimaryBlue, modifier = Modifier.size(16.dp))
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("✨ AI Giải thích tại sao sai", color = PrimaryBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            if (quiz != null && quiz.items.isNotEmpty()) {
+                if (selectedAnswers.size == quiz.items.size) {
+                    InlineQuizAIReview(quiz = quiz, selectedAnswers = selectedAnswers)
+                } else {
+                    Text(
+                        text = "Không có dữ liệu đáp án để xem lại.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
 
-            // Finish Button
             Button(
                 onClick = onFinish,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryBlue
+                ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .height(50.dp)
             ) {
                 Text(
                     text = "Back to Practice",
@@ -296,8 +188,219 @@ fun QuizResultScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(24.dp))
+@Composable
+private fun ResultValue(
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
+    }
+}
+
+// Review uses the same answer encoding as QuizTakingScreen:
+// choice = option index as String; short/blank = typed text.
+@Composable
+private fun InlineQuizAIReview(
+    quiz: Quiz,
+    selectedAnswers: List<String?>
+) {
+    val scope = rememberCoroutineScope()
+    val aiExplanations = remember(quiz.quizId) { mutableStateMapOf<Int, String>() }
+    val aiLoading = remember(quiz.quizId) { mutableStateMapOf<Int, Boolean>() }
+    val aiErrors = remember(quiz.quizId) { mutableStateMapOf<Int, String>() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "Xem lại đáp án và AI giải thích",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        quiz.items.forEachIndexed { index, question ->
+            val rawAnswer = selectedAnswers.getOrNull(index)?.trim().orEmpty()
+            val isCorrect = when (question.type) {
+                "multiple_choice" -> rawAnswer.toIntOrNull() == question.correctIndex
+                "short_answer", "fill_blank" ->
+                    rawAnswer.equals(question.answer.trim(), ignoreCase = true)
+                else -> false
+            }
+            val userAnswerText = when (question.type) {
+                "multiple_choice" -> rawAnswer.toIntOrNull()
+                    ?.let { question.options.getOrNull(it) }.orEmpty()
+                else -> rawAnswer
+            }.ifBlank { "Chưa trả lời" }
+            val correctAnswerText = when (question.type) {
+                "multiple_choice" -> question.options.getOrNull(question.correctIndex).orEmpty()
+                else -> question.answer
+            }
+
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Câu ${index + 1}", fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = if (isCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                            contentDescription = if (isCorrect) "Đúng" else "Sai",
+                            tint = if (isCorrect) SecondaryGreen else Color(0xFFDC2626)
+                        )
+                    }
+                    Text(question.prompt, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Bạn trả lời: $userAnswerText",
+                        color = if (isCorrect) SecondaryGreen else Color(0xFFDC2626)
+                    )
+
+                    if (isCorrect) {
+                        Text("Chính xác!", color = SecondaryGreen)
+                    } else {
+                        Text(
+                            text = "Đáp án đúng: $correctAnswerText",
+                            color = SecondaryGreen,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (question.explanation.isNotBlank()) {
+                            Text("Gợi ý có sẵn: ${question.explanation}")
+                        }
+
+                        aiExplanations[index]?.let { answer ->
+                            Surface(
+                                color = Color(0xFFEFF6FF),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = PrimaryBlue,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "AI giải thích",
+                                            color = PrimaryBlue,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(answer)
+                                }
+                            }
+                        }
+                        aiErrors[index]?.let { error ->
+                            Text(error, color = MaterialTheme.colorScheme.error)
+                        }
+                        if (aiExplanations[index] == null) {
+                            val isLoading = aiLoading[index] == true
+                            Button(
+                                onClick = {
+                                    aiErrors.remove(index)
+                                    aiLoading[index] = true
+                                    scope.launch {
+                                        try {
+                                            val prompt = """
+                                                Bạn là gia sư Study Mentor. Hãy giải thích bằng tiếng Việt,
+                                                dễ hiểu cho học sinh, không dùng Markdown.
+                                                Loại câu hỏi: ${question.type}
+                                                Câu hỏi: ${question.prompt}
+                                                Lựa chọn: ${question.options.joinToString("; ")}
+                                                Học sinh trả lời sai: $userAnswerText
+                                                Đáp án đúng: $correctAnswerText
+                                                Giải thích có sẵn: ${question.explanation}
+                                                Giải thích vì sao học sinh sai, vì sao đáp án đúng,
+                                                và một mẹo ghi nhớ. Giới hạn trong 5 câu.
+                                            """.trimIndent()
+                                            val response = StringBuilder()
+                                            OpenAIApiClient.askQuestion(
+                                                prompt = prompt,
+                                                systemPrompt = "Bạn là gia sư, giải thích câu trả lời sai bằng tiếng Việt, ngắn gọn, chính xác.",
+                                                maxTokens = 500
+                                            ).collect { chunk ->
+                                                response.append(chunk)
+                                            }
+                                            val answer = response.toString().trim()
+                                            if (answer.isNotBlank()) {
+                                                aiExplanations[index] = answer
+                                            } else {
+                                                aiErrors[index] = "AI chưa trả lời. Bạn có thể thử lại."
+                                            }
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            aiErrors[index] = "Không gọi được AI. Kiểm tra mạng hoặc API rồi thử lại."
+                                        } finally {
+                                            aiLoading[index] = false
+                                        }
+                                    }
+                                },
+                                enabled = !isLoading,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFEEF2FF),
+                                    contentColor = PrimaryBlue
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = PrimaryBlue,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("AI đang giải thích...")
+                                } else {
+                                    Icon(
+                                        Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("AI giải thích tại sao sai")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
