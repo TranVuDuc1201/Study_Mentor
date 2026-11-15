@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.study_mentor.MainActivity
-import com.example.study_mentor.R
 
 class StudyReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -23,6 +22,8 @@ class StudyReminderReceiver : BroadcastReceiver() {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Reminds you to study and practice quizzes daily"
+                enableLights(true)
+                enableVibration(true)
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -41,7 +42,8 @@ class StudyReminderReceiver : BroadcastReceiver() {
             .setSmallIcon(android.R.drawable.ic_menu_agenda)
             .setContentTitle("⏰ Đến giờ học rồi bạn ơi!")
             .setContentText("Hãy dành vài phút ôn tập kiến thức và hoàn thành Quiz cùng Study Mentor nhé!")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()

@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import java.util.Calendar
 
 object StudyReminderManager {
@@ -41,6 +42,16 @@ object StudyReminderManager {
             )
         } catch (e: Exception) {
             e.printStackTrace()
+            try {
+                alarmManager.setInexactRepeating(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    AlarmManager.INTERVAL_DAY,
+                    pendingIntent
+                )
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
         }
     }
 

@@ -1,6 +1,11 @@
 package com.example.study_mentor.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.CancellationException
@@ -48,6 +54,7 @@ fun ProfileScreen(
     val user = authState.currentUser
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     var displayName by rememberSaveable(user?.uid) {
         mutableStateOf(user?.displayName.orEmpty())
@@ -62,6 +69,26 @@ fun ProfileScreen(
 
     LaunchedEffect(user?.uid) {
         if (user == null) onNavigateToLogin()
+    }
+
+    val prefs = remember { context.getSharedPreferences("study_prefs", Context.MODE_PRIVATE) }
+    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean("reminder_enabled", false)) }
+    var reminderHour by remember { mutableStateOf(prefs.getInt("reminder_hour", 8)) }
+    var reminderMinute by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            prefs.edit().putBoolean("reminder_enabled", true).apply()
+            reminderEnabled = true
+            StudyReminderManager.scheduleReminder(context, reminderHour, reminderMinute)
+            val timeStr = String.format("%02d:%02d", reminderHour, reminderMinute)
+            scope.launch { snackbarHostState.showSnackbar("Study reminder enabled for $timeStr daily!") }
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Notification permission is required for reminders.") }
+        }
     }
 
     Scaffold(
@@ -187,13 +214,6 @@ fun ProfileScreen(
             Card(colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
-                    val context = LocalContext.current
-                    val prefs = remember { context.getSharedPreferences("study_prefs", Context.MODE_PRIVATE) }
-                    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean("reminder_enabled", false)) }
-                    var reminderHour by remember { mutableStateOf(prefs.getInt("reminder_hour", 8)) }
-                    var reminderMinute by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
-                    var showTimePicker by remember { mutableStateOf(false) }
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -208,13 +228,26 @@ fun ProfileScreen(
                         Switch(
                             checked = reminderEnabled,
                             onCheckedChange = { enabled ->
-                                reminderEnabled = enabled
-                                prefs.edit().putBoolean("reminder_enabled", enabled).apply()
-                                val timeStr = String.format("%02d:%02d", reminderHour, reminderMinute)
                                 if (enabled) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        val hasPermission = ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        ) == PackageManager.PERMISSION_GRANTED
+
+                                        if (!hasPermission) {
+                                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            return@Switch
+                                        }
+                                    }
+                                    reminderEnabled = true
+                                    prefs.edit().putBoolean("reminder_enabled", true).apply()
                                     StudyReminderManager.scheduleReminder(context, reminderHour, reminderMinute)
+                                    val timeStr = String.format("%02d:%02d", reminderHour, reminderMinute)
                                     scope.launch { snackbarHostState.showSnackbar("Study reminder set for $timeStr daily!") }
                                 } else {
+                                    reminderEnabled = false
+                                    prefs.edit().putBoolean("reminder_enabled", false).apply()
                                     StudyReminderManager.cancelReminder(context)
                                     scope.launch { snackbarHostState.showSnackbar("Study reminder turned off.") }
                                 }
