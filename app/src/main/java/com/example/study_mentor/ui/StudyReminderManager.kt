@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import java.util.Calendar
 
 object StudyReminderManager {
@@ -65,5 +64,10 @@ object StudyReminderManager {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         alarmManager.cancel(pendingIntent)
+    }
+
+    fun triggerTestNotification(context: Context) {
+        val intent = Intent(context, StudyReminderReceiver::class.java)
+        context.sendBroadcast(intent)
     }
 }

@@ -257,11 +257,24 @@ fun ProfileScreen(
 
                     if (reminderEnabled) {
                         Spacer(Modifier.height(12.dp))
-                        TextButton(
-                            onClick = { showTimePicker = true },
-                            modifier = Modifier.align(Alignment.End)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Change time", color = ProfileBlue, fontWeight = FontWeight.SemiBold)
+                            TextButton(
+                                onClick = {
+                                    StudyReminderManager.triggerTestNotification(context)
+                                    scope.launch { snackbarHostState.showSnackbar("🔔 Test notification sent!") }
+                                }
+                            ) {
+                                Text("🔔 Test Notification", color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                            }
+                            TextButton(
+                                onClick = { showTimePicker = true }
+                            ) {
+                                Text("Change time", color = ProfileBlue, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                     }
 
@@ -354,16 +367,13 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             title = { Text("Log out?") },
-            text = { Text("Are you sure you want to log out of your account?") },
+            text = { Text("You will need to sign in again to access your account.") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showLogoutDialog = false
-                        viewModel.logout()
-                        onNavigateToLogin()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Log out") }
+                TextButton(onClick = {
+                    showLogoutDialog = false
+                    viewModel.logout()
+                    onNavigateToLogin()
+                }) { Text("Log out") }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
@@ -373,24 +383,17 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileSectionTitle(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.labelMedium,
-        color = Color.Gray,
-        fontWeight = FontWeight.Bold
-    )
+fun ProfileSectionTitle(value: String) {
+    Text(value, modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
+        color = ProfileBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
 }
 
 @Composable
 fun ProfileDetail(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, color = Color.Gray, fontSize = 14.sp)
-        Text(value, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = Color.Black)
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+        Spacer(Modifier.height(4.dp))
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
     }
 }
 
