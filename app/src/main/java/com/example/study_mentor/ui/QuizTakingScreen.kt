@@ -323,11 +323,7 @@ fun QuizTakingScreen(
                                 }
 
                                 val totalQuestions = quiz.items.size
-                                val xpEarned = if (totalQuestions > 0) {
-                                    (score.toDouble() / totalQuestions * 50).toInt()
-                                } else {
-                                    0
-                                }
+                                val xpEarned = quiz.xpReward
 
                                 coroutineScope.launch {
                                     try {
@@ -349,9 +345,6 @@ fun QuizTakingScreen(
                                             correctAnswers = score,
                                             totalQuestions = totalQuestions
                                         )
-                                        if (xpEarned > 0) {
-                                            statsRepository.addXp(xpEarned.toLong())
-                                        }
 
                                         onNavigateToResult(
                                             quiz.title,
