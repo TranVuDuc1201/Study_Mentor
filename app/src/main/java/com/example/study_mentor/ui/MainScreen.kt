@@ -83,7 +83,8 @@ fun MainScreen(
         "login",
         "register",
         "quiz_taking",
-        "quiz_result/{quizTitle}/{score}/{totalQuestions}/{xpEarned}"
+        "quiz_result/{quizTitle}/{score}/{totalQuestions}/{xpEarned}",
+        "quiz_insights"
     )
 
     val shouldShowBottomBar = currentRoute !in hideBottomBarRoutes
@@ -310,6 +311,12 @@ fun MainScreen(
 
                     xpEarned = xpEarned,
 
+                    onOpenInsights = {
+                        navController.navigate("quiz_insights") {
+                            launchSingleTop = true
+                        }
+                    },
+
                     onFinish = {
 
                         // Clear the selected quiz
@@ -321,6 +328,18 @@ fun MainScreen(
                             inclusive = false
                         )
                     }
+                )
+            }
+
+            // =================================================
+            // AI LEARNING INSIGHTS (NEW FEATURE)
+            // =================================================
+
+            composable("quiz_insights") {
+                QuizInsightsScreen(
+                    quizId = selectedQuiz?.quizId.orEmpty(),
+                    quizTitle = selectedQuiz?.title.orEmpty(),
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 
