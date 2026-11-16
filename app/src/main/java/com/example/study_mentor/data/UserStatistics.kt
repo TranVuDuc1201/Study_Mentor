@@ -16,5 +16,8 @@ data class UserStatistics(
 
     val reviewTimeSeconds: Int = 0,
 
-    val updatedAt: Timestamp? = null
+    val updatedAt: Timestamp? = null,
+
+    val totalXp: Long = 0L,
+    val level: Int = 1,
 )

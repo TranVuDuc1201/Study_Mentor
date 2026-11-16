@@ -1,6 +1,7 @@
 
 package com.example.study_mentor.data
 
+import com.example.study_mentor.ui.AchievementEventManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
@@ -9,35 +10,72 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import kotlin.math.sqrt
+import com.google.firebase.firestore.Transaction
 
 class UserStatisticsRepository {
 
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    // Get statistics document of current user
-    private fun statisticsRef(): DocumentReference {
-        val uid = auth.currentUser?.uid
+    private fun currentUid(): String {
+        return auth.currentUser?.uid
             ?: throw IllegalStateException("User is not logged in")
+    }
 
+    private fun statisticsRef(): DocumentReference {
         return db.collection("users")
-            .document(uid)
+            .document(currentUid())
             .collection("statistics")
             .document("summary")
     }
 
-    // Update daily activity inside a Firestore transaction
+    // Read updated statistics and check achievements
+    suspend fun checkAchievements() {
+        val uid = currentUid()
+        val snapshot = statisticsRef().get().await()
+
+        val progress = AchievementProgress(
+            totalQuestionsAsked =
+                snapshot.getLong("totalQuestionsAsked")?.toInt() ?: 0,
+
+            totalQuizAttempts =
+                snapshot.getLong("totalQuizAttempts")?.toInt() ?: 0,
+
+            quizCorrectTotal =
+                snapshot.getLong("quizCorrectTotal")?.toInt() ?: 0,
+
+            dayStreak =
+                snapshot.getLong("dayStreak")?.toInt() ?: 0,
+
+            totalXp =
+                snapshot.getLong("totalXp") ?: 0L,
+
+            level =
+                snapshot.getLong("level")?.toInt() ?: 1
+        )
+
+        val unlocked = AchievementRepository
+            .checkAndUnlockAchievements(uid, progress)
+
+        if (unlocked.isNotEmpty()) {
+            AchievementEventManager.notifyUnlocked(unlocked)
+        }
+    }
+
+    // Update daily activity
+
     private fun updateDailyActivity(
         snapshot: com.google.firebase.firestore.DocumentSnapshot,
-        updates: MutableMap<String, Any>
+        updates: MutableMap<String, Any>,
+        transaction: Transaction,
+        userRef: DocumentReference
     ) {
         val today = LocalDate.now()
 
-        val lastActiveDate =
-            snapshot.getString("lastActiveDate") ?: ""
+        val lastActiveDate = snapshot.getString("lastActiveDate") ?: ""
 
-        val oldStreak =
-            snapshot.getLong("dayStreak")?.toInt() ?: 0
+        val oldStreak = snapshot.getLong("dayStreak")?.toInt() ?: 0
 
         val oldLongestStreak =
             snapshot.getLong("longestStreak")?.toInt() ?: 0
@@ -58,16 +96,39 @@ class UserStatisticsRepository {
             1
         }
 
-        updates["dayStreak"] = newStreak
-        updates["longestStreak"] = maxOf(
+        val newLongestStreak = maxOf(
             oldLongestStreak,
             newStreak
         )
+
+        updates["dayStreak"] = newStreak
+        updates["longestStreak"] = newLongestStreak
         updates["lastActiveDate"] = today.toString()
         updates["updatedAt"] = FieldValue.serverTimestamp()
+
+        // Get the latest XP and level from statistics/summary.
+        // If the current transaction changes them, use the new values.
+        val totalXp = updates["totalXp"]
+            ?: (snapshot.getLong("totalXp") ?: 0L)
+
+        val level = updates["level"]
+            ?: (snapshot.getLong("level")?.toInt() ?: 1)
+
+        // Synchronize all four fields to users/{uid}
+        transaction.set(
+            userRef,
+            mapOf(
+                "dayStreak" to newStreak,
+                "longestStreak" to newLongestStreak,
+                "totalXp" to totalXp,
+                "level" to level
+            ),
+            SetOptions.merge()
+        )
     }
 
-    // 1. Record a question asked to AI
+
+    // 1. Record AI question
     suspend fun recordAiQuestion(subject: String) {
         val ref = statisticsRef()
 
@@ -78,6 +139,10 @@ class UserStatisticsRepository {
 
             val snapshot = transaction.get(ref)
 
+            val uid = currentUid()
+
+            val userRef = db.collection("users")
+                .document(uid)
             val oldTotal =
                 snapshot.getLong("totalQuestionsAsked")?.toInt() ?: 0
 
@@ -101,7 +166,12 @@ class UserStatisticsRepository {
                 "subjectCounts" to updatedSubjects
             )
 
-            updateDailyActivity(snapshot, updates)
+            updateDailyActivity(
+                snapshot = snapshot,
+                updates = updates,
+                transaction = transaction,
+                userRef = userRef
+            )
 
             transaction.set(
                 ref,
@@ -111,9 +181,12 @@ class UserStatisticsRepository {
 
             null
         }.await()
+
+        // Check AI achievements and streak achievements
+        checkAchievements()
     }
 
-    // 2. Record a completed quiz
+    // 2. Record completed quiz
     suspend fun recordQuizResult(
         correctAnswers: Int,
         totalQuestions: Int
@@ -131,7 +204,10 @@ class UserStatisticsRepository {
         db.runTransaction { transaction ->
 
             val snapshot = transaction.get(ref)
+            val uid = currentUid()
 
+            val userRef = db.collection("users")
+                .document(uid)
             val oldAttempts =
                 snapshot.getLong("totalQuizAttempts")?.toInt() ?: 0
 
@@ -158,7 +234,12 @@ class UserStatisticsRepository {
                 "currentAccuracy" to accuracy
             )
 
-            updateDailyActivity(snapshot, updates)
+            updateDailyActivity(
+                snapshot = snapshot,
+                updates = updates,
+                transaction = transaction,
+                userRef = userRef
+            )
 
             transaction.set(
                 ref,
@@ -168,6 +249,9 @@ class UserStatisticsRepository {
 
             null
         }.await()
+
+        // Check quiz achievements and streak achievements
+        checkAchievements()
     }
 
     // 3. Record daily activity
@@ -178,9 +262,18 @@ class UserStatisticsRepository {
 
             val snapshot = transaction.get(ref)
 
+            val uid = currentUid()
+
+            val userRef = db.collection("users")
+                .document(uid)
             val updates = mutableMapOf<String, Any>()
 
-            updateDailyActivity(snapshot, updates)
+            updateDailyActivity(
+                snapshot = snapshot,
+                updates = updates,
+                transaction = transaction,
+                userRef = userRef
+            )
 
             transaction.set(
                 ref,
@@ -190,9 +283,12 @@ class UserStatisticsRepository {
 
             null
         }.await()
+
+        // Check streak achievements
+        checkAchievements()
     }
 
-    // 4. Record review time in seconds
+    // 4. Record review time
     suspend fun recordReviewTime(seconds: Int) {
         require(seconds >= 0) {
             "Review time cannot be negative"
@@ -204,6 +300,10 @@ class UserStatisticsRepository {
 
             val snapshot = transaction.get(ref)
 
+            val uid = currentUid()
+
+            val userRef = db.collection("users")
+                .document(uid)
             val oldTime =
                 snapshot.getLong("reviewTimeSeconds") ?: 0L
 
@@ -211,7 +311,12 @@ class UserStatisticsRepository {
                 "reviewTimeSeconds" to oldTime + seconds
             )
 
-            updateDailyActivity(snapshot, updates)
+            updateDailyActivity(
+                snapshot = snapshot,
+                updates = updates,
+                transaction = transaction,
+                userRef = userRef
+            )
 
             transaction.set(
                 ref,
@@ -221,5 +326,106 @@ class UserStatisticsRepository {
 
             null
         }.await()
+
+        checkAchievements()
+    }
+
+    // 5. Add XP
+
+    // 5. Add XP and sync leaderboard data
+    suspend fun addXp(xp: Long) {
+        require(xp > 0) {
+            "XP must be greater than 0"
+        }
+
+        val uid = currentUid()
+
+        val userRef = db.collection("users")
+            .document(uid)
+
+        val statsRef = userRef.collection("statistics")
+            .document("summary")
+
+        db.runTransaction { transaction ->
+
+            // Read both documents before writing
+            val statsSnapshot = transaction.get(statsRef)
+            transaction.get(userRef)
+
+            val oldXp = statsSnapshot.getLong("totalXp") ?: 0L
+            val newXp = Math.addExact(oldXp, xp)
+
+            val newLevel = calculateLevel(newXp)
+
+            val updates = mutableMapOf<String, Any>(
+                "totalXp" to newXp,
+                "level" to newLevel
+            )
+
+            updateDailyActivity(
+                snapshot = statsSnapshot,
+                updates = updates,
+                transaction = transaction,
+                userRef = userRef
+            )
+
+            // Update statistics/summary
+            transaction.set(
+                statsRef,
+                updates,
+                SetOptions.merge()
+            )
+
+            // Sync XP and Level to users/{uid}
+
+
+            null
+        }.await()
+
+        // Check XP, level and streak achievements
+        checkAchievements()
+    }
+
+
+    // LEVEL CALCULATION
+
+    private fun calculateLevel(xp: Long): Int {
+        if (xp < 0L) return 1
+
+        val value = xp / 25.0
+
+        val level = (
+                (-1.0 + sqrt(9.0 + 4.0 * value)) / 2.0
+                ).toInt()
+
+        return maxOf(1, level)
+    }
+
+    fun getXpRequiredForLevel(level: Int): Long {
+        require(level >= 1) {
+            "Level must be at least 1"
+        }
+
+        val n = level.toLong() - 1L
+
+        return 25L * n * (n + 3L)
+    }
+
+    fun calculateProgress(xp: Long): Float {
+        if (xp < 0L) return 0f
+
+        val level = calculateLevel(xp)
+
+        val currentLevelXp = getXpRequiredForLevel(level)
+        val nextLevelXp = getXpRequiredForLevel(level + 1)
+
+        val progressXp = xp - currentLevelXp
+        val requiredXp = nextLevelXp - currentLevelXp
+
+        if (requiredXp <= 0L) return 1f
+
+        return (
+                progressXp.toFloat() / requiredXp.toFloat()
+                ).coerceIn(0f, 1f)
     }
 }

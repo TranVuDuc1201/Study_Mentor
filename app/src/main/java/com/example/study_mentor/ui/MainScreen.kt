@@ -46,6 +46,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.study_mentor.data.Quiz
 import com.example.study_mentor.ui.theme.PrimaryBlue
 
+
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -69,6 +70,8 @@ fun MainScreen(
 
     val currentRoute = navBackStackEntry?.destination?.route
 
+    AchievementAutoListener()
+    // Listen for newly unlocked achievements
     // ---------------------------------------------------------
     // Chat state
     // ---------------------------------------------------------
@@ -89,10 +92,11 @@ fun MainScreen(
     val shouldShowBottomBar = currentRoute !in hideBottomBarRoutes
 
     // ---------------------------------------------------------
-    // Main Scaffold
+    // Main Scaffold & Overlays
     // ---------------------------------------------------------
 
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         bottomBar = {
 
             if (shouldShowBottomBar) {
@@ -154,6 +158,39 @@ fun MainScreen(
                             )
 
                         navController.navigate("ask_ai")
+                    },
+                            onNavigateToAchievements = {
+                        navController.navigate("achievements")
+                    },
+                    onNavigateToLeaderboard = {
+                        navController.navigate("leaderboard")
+                    }
+                )
+            }
+
+            // =================================================
+// ACHIEVEMENTS
+// =================================================
+
+            composable("achievements") {
+
+                AchievementScreen(
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable("leaderboard") {
+
+                LeaderboardScreen(
+                    onBack = {
+                        navController.navigate("home") {
+                            popUpTo("home") {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
@@ -500,6 +537,10 @@ fun MainScreen(
                 )
             }
         }
+
+        }
+
+        AchievementUnlockListener()
     }
 }
 
