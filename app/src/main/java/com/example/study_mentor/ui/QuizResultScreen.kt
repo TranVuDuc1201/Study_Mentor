@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -40,8 +39,7 @@ fun QuizResultScreen(
     score: Int,
     totalQuestions: Int,
     xpEarned: Int,
-    onFinish: () -> Unit,
-    onOpenInsights: () -> Unit = {}
+    onFinish: () -> Unit
 ) {
     val percentage = if (totalQuestions > 0) {
         (score.toFloat() / totalQuestions * 100).toInt()
@@ -145,38 +143,21 @@ fun QuizResultScreen(
                 }
             }
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = onFinish,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryBlue
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
             ) {
-                OutlinedButton(
-                    onClick = onOpenInsights,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Text("Analyze with AI", color = PrimaryBlue, fontWeight = FontWeight.Bold)
-                }
-
                 Text(
-                    text = "AI analysis sends your quiz answers to the study assistant.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    text = "Back to Practice",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
-
-                Button(
-                    onClick = onFinish,
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Text(
-                        text = "Back to Practice",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
             }
         }
     }
