@@ -152,11 +152,19 @@ class ChatViewModel(
         try {
             val subject = detectSubject(question)
 
+            // Record AI question statistics
             statisticsRepository.recordAiQuestion(subject)
 
+            // Award 5 XP for a successful AI response
+            statisticsRepository.addXp(5)
             Log.d(
                 "ChatStatistics",
                 "AI question recorded. Subject: $subject"
+            )
+
+            Log.d(
+                "XP",
+                "Successfully awarded 5 XP"
             )
 
         } catch (e: Exception) {

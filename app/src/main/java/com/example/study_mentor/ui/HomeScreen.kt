@@ -46,7 +46,9 @@ fun HomeScreen(
     onNavigateToRegister: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToAskAI: () -> Unit,
-    onQuestionSelected: (String) -> Unit
+    onQuestionSelected: (String) -> Unit,
+    onNavigateToAchievements: () -> Unit,
+    onNavigateToLeaderboard: () -> Unit
 ) {
 
     // ============================================
@@ -269,8 +271,13 @@ fun HomeScreen(
 
         // Keep the existing Firebase dashboard.
         // It handles its own login state and UID.
-        ProgressDashboardSection()
+        ProgressDashboardSection(onNavigateToAchievements = {
+            onNavigateToAchievements()
+        })
 
+        LeaderboardPreviewSection(
+            onViewAll = onNavigateToLeaderboard
+        )
         // ========================================
         // ASK AI SECTION
         // ========================================
