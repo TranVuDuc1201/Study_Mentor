@@ -16,6 +16,8 @@ import com.google.firebase.auth.FirebaseAuth
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
 
 private val DashboardBlue = Color(0xFF2563EB)
 private val DashboardMuted = Color(0xFF64748B)
@@ -24,7 +26,8 @@ private val DashboardDarkText = Color(0xFF17233B)
 
 @Composable
 fun ProgressDashboardSection(
-    progressViewModel: ProgressViewModel = viewModel()
+    progressViewModel: ProgressViewModel = viewModel(),
+    onNavigateToAchievements: () -> Unit = {}
 ) {
     val state by progressViewModel.state.collectAsState()
     val auth = remember { FirebaseAuth.getInstance() }
@@ -43,12 +46,36 @@ fun ProgressDashboardSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            text = "Learning Progress",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = DashboardDarkText
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Learning Progress",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = DashboardDarkText
+            )
+
+            TextButton(
+                onClick = onNavigateToAchievements
+            ) {
+                Text(
+                    text = "Achievements",
+                    color = DashboardBlue,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Default.EmojiEvents,
+                    contentDescription = "Achievements",
+                    tint = DashboardBlue
+                )
+            }
+        }
 
         if (uid == null) {
             Text(

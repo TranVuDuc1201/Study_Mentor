@@ -39,6 +39,8 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import androidx.compose.runtime.DisposableEffect
+import com.google.firebase.firestore.FirebaseFirestore
 
 private val ProfileBlue = Color(0xFF4263EB)
 private val ProfilePurple = Color(0xFF7950F2)
@@ -55,6 +57,38 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    var totalXp by remember(user?.uid) {
+        mutableLongStateOf(0L)
+    }
+
+    var currentLevel by remember(user?.uid) {
+        mutableIntStateOf(1)
+    }
+
+    DisposableEffect(user?.uid) {
+        val uid = user?.uid
+
+        val registration = if (uid != null) {
+            FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .collection("statistics")
+                .document("summary")
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        totalXp = snapshot.getLong("totalXp") ?: 0L
+                        currentLevel = snapshot.getLong("level")?.toInt() ?: 1
+                    }
+                }
+        } else {
+            null
+        }
+
+        onDispose {
+            registration?.remove()
+        }
+    }
 
     var displayName by rememberSaveable(user?.uid) {
         mutableStateOf(user?.displayName.orEmpty())
@@ -136,6 +170,12 @@ fun ProfileScreen(
                         fontSize = 14.sp, textAlign = TextAlign.Center)
                 }
             }
+
+            LevelXpCard(
+                totalXp = totalXp,
+                level = currentLevel
+            )
+
 
             Spacer(Modifier.height(22.dp))
             ProfileSectionTitle("ACCOUNT INFORMATION")
@@ -419,6 +459,118 @@ fun ProfileAction(
                 Spacer(Modifier.height(2.dp))
                 Text(subtitle, fontSize = 13.sp, color = Color.Gray)
             }
+        }
+    }
+}
+@Composable
+private fun LevelXpCard(
+    totalXp: Long,
+    level: Int
+) {
+    // XP cần có để bắt đầu Level hiện tại
+    val currentLevelXp =
+        25L * (level - 1) * (level + 2)
+
+    // XP cần có để đạt Level tiếp theo
+    val nextLevel = level + 1
+    val nextLevelXp =
+        25L * (nextLevel - 1) * (nextLevel + 2)
+
+    // XP đã tích lũy trong Level hiện tại
+    val earnedXp = (totalXp - currentLevelXp)
+        .coerceAtLeast(0L)
+
+    val requiredXp = nextLevelXp - currentLevelXp
+
+    val progress = if (requiredXp > 0) {
+        (earnedXp.toFloat() / requiredXp.toFloat())
+            .coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "LEVEL $level",
+                        color = ProfileBlue,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Keep learning to level up!",
+                        color = Color.Gray,
+                        fontSize = 13.sp
+                    )
+                }
+
+                Text(
+                    text = "⭐",
+                    fontSize = 30.sp
+                )
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "XP Progress",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+
+                Text(
+                    text = "$earnedXp / $requiredXp XP",
+                    color = ProfileBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(50.dp)),
+                color = ProfileBlue,
+                trackColor = Color(0xFFE8EAF6)
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                text = "${(progress * 100).toInt()}% completed • Next: Level $nextLevel",
+                color = Color.Gray,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = "${(requiredXp - earnedXp).coerceAtLeast(0L)} XP remaining",
+                color = ProfilePurple,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp
+            )
         }
     }
 }
