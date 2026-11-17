@@ -12,11 +12,21 @@ data class ProgressSession(
     val createdAt: Long
 )
 
+data class QuizProgressRecord(
+    val id: String,
+    val subject: String,
+    val score: Int,
+    val totalQuestions: Int
+)
+
 class ProgressRepository(
     private val firestore: FirebaseFirestore =
         FirebaseFirestore.getInstance()
 ) {
 
+    /**
+     * Observe AI chat sessions belonging to one user.
+     */
     fun observeStudySessions(
         uid: String
     ): Flow<List<ProgressSession>> = callbackFlow {
@@ -50,6 +60,68 @@ class ProgressRepository(
                     .orEmpty()
 
                 trySend(sessions)
+            }
+
+        awaitClose {
+            registration.remove()
+        }
+    }
+
+    /**
+     * Observe completed quiz results belonging to one user.
+     *
+     * Firestore path:
+     * users/{uid}/quiz_results/{resultId}
+     */
+    fun observeQuizResults(
+        uid: String
+    ): Flow<List<QuizProgressRecord>> = callbackFlow {
+
+        val registration = firestore
+            .collection("users")
+            .document(uid)
+            .collection("quiz_results")
+            .addSnapshotListener { snapshot, error ->
+
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                val results = snapshot?.documents
+                    ?.mapNotNull { document ->
+
+                        val score =
+                            document.getLong("score")?.toInt()
+
+                        val totalQuestions =
+                            document.getLong("totalQuestions")?.toInt()
+
+                        if (
+                            score == null ||
+                            totalQuestions == null ||
+                            totalQuestions < 0 ||
+                            score !in 0..totalQuestions
+                        ) {
+                            return@mapNotNull null
+                        }
+
+                        val subject = document
+                            .getString("subject")
+                            ?.trim()
+                            .orEmpty()
+                            .ifBlank { "Other" }
+
+                        QuizProgressRecord(
+                            id = document.id,
+                            subject = subject,
+                            score = score,
+                            totalQuestions = totalQuestions
+                        )
+                    }
+                    .orEmpty()
+
+                trySend(results)
             }
 
         awaitClose {
