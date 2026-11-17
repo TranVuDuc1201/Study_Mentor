@@ -25,8 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -134,6 +137,8 @@ fun HomeScreen(
 
             if (signedIn) {
 
+                val userPhotoUrl = auth.currentUser?.photoUrl
+
                 IconButton(
                     onClick = onNavigateToProfile
                 ) {
@@ -148,12 +153,23 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
 
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Open Profile",
-                            tint = PrimaryBlue,
-                            modifier = Modifier.size(26.dp)
-                        )
+                        if (userPhotoUrl != null) {
+                            AsyncImage(
+                                model = userPhotoUrl,
+                                contentDescription = "Open Profile Avatar",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Open Profile Avatar",
+                                tint = PrimaryBlue,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
                     }
                 }
 

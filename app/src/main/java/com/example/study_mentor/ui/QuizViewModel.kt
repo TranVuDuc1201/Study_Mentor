@@ -2,7 +2,6 @@ package com.example.study_mentor.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.study_mentor.data.ChatSession
 import com.example.study_mentor.data.Quiz
 import com.example.study_mentor.data.QuizChatSessionOption
 import com.example.study_mentor.data.QuizGenerator
@@ -20,7 +19,14 @@ data class QuizUiState(
     val chatSessions: List<QuizChatSessionOption> = emptyList(),
     val isLoadingSessions: Boolean = false,
     val isGenerating: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+
+    // Quiz Taking & Feedback State
+    val currentQuestionIndex: Int = 0,
+    val selectedAnswerIndex: Int = -1,
+    val isAnswerEvaluated: Boolean = false,
+    val feedbackMessage: String? = null,
+    val showFeedback: Boolean = false
 )
 
 class QuizViewModel : ViewModel() {
@@ -118,6 +124,79 @@ class QuizViewModel : ViewModel() {
             } finally {
                 _state.update { it.copy(isGenerating = false) }
             }
+        }
+    }
+
+    // ============================================
+    // QUIZ TAKING & FEEDBACK STATE MANAGEMENT
+    // ============================================
+
+    fun selectAnswer(index: Int) {
+        _state.update {
+            it.copy(selectedAnswerIndex = index)
+        }
+    }
+
+    fun evaluateAnswer(isCorrect: Boolean, correctAnswer: String) {
+        val message = if (isCorrect) {
+            "Correct! 🎉"
+        } else {
+            if (correctAnswer.isNotBlank()) "Incorrect answer. Correct answer: $correctAnswer" else "Incorrect answer."
+        }
+        _state.update {
+            it.copy(
+                isAnswerEvaluated = true,
+                feedbackMessage = message,
+                showFeedback = true
+            )
+        }
+    }
+
+    /**
+     * Advances to the next question and explicitly resets all feedback-related states
+     * so that the new question starts completely fresh.
+     */
+    fun nextQuestion(totalQuestions: Int) {
+        _state.update { current ->
+            val nextIndex = (current.currentQuestionIndex + 1).coerceAtMost(totalQuestions - 1)
+            current.copy(
+                currentQuestionIndex = nextIndex,
+                selectedAnswerIndex = -1,
+                isAnswerEvaluated = false,
+                feedbackMessage = null,
+                showFeedback = false
+            )
+        }
+    }
+
+    /**
+     * Returns to the previous question and resets lingering feedback.
+     */
+    fun previousQuestion() {
+        _state.update { current ->
+            val prevIndex = (current.currentQuestionIndex - 1).coerceAtLeast(0)
+            current.copy(
+                currentQuestionIndex = prevIndex,
+                selectedAnswerIndex = -1,
+                isAnswerEvaluated = false,
+                feedbackMessage = null,
+                showFeedback = false
+            )
+        }
+    }
+
+    /**
+     * Resets all quiz-taking and feedback state back to defaults.
+     */
+    fun resetQuizTakingState() {
+        _state.update {
+            it.copy(
+                currentQuestionIndex = 0,
+                selectedAnswerIndex = -1,
+                isAnswerEvaluated = false,
+                feedbackMessage = null,
+                showFeedback = false
+            )
         }
     }
 
