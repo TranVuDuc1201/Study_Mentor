@@ -171,20 +171,23 @@ class FirestoreChatRepository(
 
         val messagesRef = sessionRef.collection("messages")
 
-        // Keep each commit below Firestore's batch write limit.
-        while (true) {
-            val snapshot = messagesRef.limit(400).get().await()
-            if (snapshot.isEmpty) break
+        deleteChatSessionInBatches(
+            loadBatch = {
+                messagesRef.limit(400).get().await().documents
+            },
+            deleteBatch = { documents ->
+                val batch = firestore.batch()
 
-            val batch = firestore.batch()
-            snapshot.documents.forEach { doc ->
-                batch.delete(doc.reference)
+                documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+
+                batch.commit().await()
+            },
+            deleteParent = {
+                sessionRef.delete().await()
             }
-            batch.commit().await()
-        }
-
-        // Delete the parent only after all message batches have completed.
-        sessionRef.delete().await()
+        )
     }
 
 }
