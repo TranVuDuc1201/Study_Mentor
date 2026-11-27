@@ -2,6 +2,7 @@ package com.example.study_mentor.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.study_mentor.data.PowerUpType
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
@@ -9,6 +10,8 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +28,8 @@ data class AuthState(
 
 class AuthViewModel : ViewModel() {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+
     private val _authState = MutableStateFlow(AuthState(currentUser = auth.currentUser))
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
@@ -34,6 +39,11 @@ class AuthViewModel : ViewModel() {
 
     init {
         auth.addAuthStateListener(authListener)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        auth.removeAuthStateListener(authListener)
     }
 
     fun login(email: String, password: String) {
@@ -55,45 +65,9 @@ class AuthViewModel : ViewModel() {
                     isLoading = false, currentUser = user, errorMessage = null
                 )
 
-                // 2. TỰ ĐỘNG KIỂM TRA VÀ ĐỒNG BỘ DỮ LIỆU SANG FIRESTORE CHO CẢ USER CŨ LẪN MỚI
+                // 2. TỰ ĐỘNG KIỂM TRA VÀ ĐỒNG BỘ DỮ LIỆU SANG FIRESTORE
                 if (user != null) {
-                    val userDocRef = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                        .collection("users")
-                        .document(user.uid)
-
-                    try {
-                        val snapshot = userDocRef.get().await()
-                        // Nếu document chưa tồn tại HOẶC chưa có trường "name"
-                        val updates = mutableMapOf<String, Any>()
-
-                        if (!snapshot.contains("name")) {
-                            updates["name"] =
-                                user.displayName?.takeIf { it.isNotBlank() }
-                                    ?: user.email?.substringBefore("@")
-                                            ?: "User"
-                        }
-
-                        if (!snapshot.contains("email")) {
-                            updates["email"] = user.email ?: email.trim()
-                        }
-
-                        if (!snapshot.contains("totalXp")) {
-                            updates["totalXp"] = 0L
-                        }
-
-                        if (!snapshot.contains("level")) {
-                            updates["level"] = 1
-                        }
-
-                        if (updates.isNotEmpty()) {
-                            userDocRef.set(
-                                updates,
-                                com.google.firebase.firestore.SetOptions.merge()
-                            ).await()
-                        }
-                    } catch (firestoreError: Exception) {
-                        // Bỏ qua lỗi ngầm của Firestore để không làm gián đoạn luồng đăng nhập chính của người dùng
-                    }
+                    syncUserDataToFirestore(user, email.trim())
                 }
 
             } catch (e: CancellationException) {
@@ -125,36 +99,38 @@ class AuthViewModel : ViewModel() {
                 )
 
                 if (user != null) {
-                    // 2. Cập nhật display name lên Firebase Auth profile
+                    // 2. Lưu thông tin lên Firestore NGAY LẬP TỨC (gồm cả powerUps mặc định)
+                    val defaultPowerUps = PowerUpType.entries.associate { it.id to it.defaultCount }
+                    val userDocData = hashMapOf(
+                        "name" to name.trim(),
+                        "email" to email.trim(),
+                        "level" to 1,
+                        "totalXp" to 0L,
+                        "powerUps" to defaultPowerUps
+                    )
+
+                    try {
+                        db.collection("users")
+                            .document(user.uid)
+                            .set(userDocData, SetOptions.merge())
+                            .await()
+                    } catch (_: Exception) {
+                        // Nếu lỗi mạng tạm thời, hàm login lần sau sẽ tự động bù lại
+                    }
+
+                    // 3. Cập nhật display name & gửi email xác thực
                     val profile = UserProfileChangeRequest.Builder()
                         .setDisplayName(name.trim()).build()
 
                     try {
                         user.updateProfile(profile).await()
                         user.sendEmailVerification().await()
-
-                        // 3. QUAN TRỌNG: Lưu thông tin chi tiết (gồm name, email, level)
-                        // vào Firestore tại collection "users/{uid}" để làm bảng xếp hạng và quản lý thông tin
-                        val userDocData = hashMapOf(
-                            "name" to name.trim(),
-                            "email" to email.trim(),
-                            "level" to 1,          // Khởi tạo level mặc định là 1
-                            "totalXp" to 0L        // Khởi tạo XP mặc định là 0
-                        )
-
-                        com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                            .collection("users")
-                            .document(user.uid)
-                            .set(userDocData, com.google.firebase.firestore.SetOptions.merge())
-                            .await()
-
                         _authState.value = _authState.value.copy(
                             infoMessage = "Account created. Check your inbox to verify your email."
                         )
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        // Nếu lỗi phụ (như gửi mail xác thực), tài khoản vẫn tạo thành công
                         _authState.value = _authState.value.copy(
                             infoMessage = "Account created. You can verify your email later."
                         )
@@ -165,6 +141,47 @@ class AuthViewModel : ViewModel() {
             } catch (e: Exception) {
                 setError(friendlyError(e))
             }
+        }
+    }
+
+    private suspend fun syncUserDataToFirestore(user: FirebaseUser, fallbackEmail: String) {
+        val userDocRef = db.collection("users").document(user.uid)
+        try {
+            val snapshot = userDocRef.get().await()
+            val updates = mutableMapOf<String, Any>()
+
+            if (!snapshot.contains("name")) {
+                updates["name"] = user.displayName?.takeIf { it.isNotBlank() }
+                    ?: user.email?.substringBefore("@")
+                            ?: "User"
+            }
+            if (!snapshot.contains("email")) {
+                updates["email"] = user.email ?: fallbackEmail
+            }
+            if (!snapshot.contains("totalXp")) {
+                updates["totalXp"] = 0L
+            }
+            if (!snapshot.contains("level")) {
+                updates["level"] = 1
+            }
+
+            // Kiểm tra map powerUps: tự động thêm các power-up mới nếu user chưa có
+            val existingPowerUps = snapshot.get("powerUps") as? Map<*, *> ?: emptyMap<Any, Any>()
+            val powerUpUpdates = mutableMapOf<String, Long>()
+            for (type in PowerUpType.entries) {
+                if (!existingPowerUps.containsKey(type.id)) {
+                    powerUpUpdates[type.id] = type.defaultCount
+                }
+            }
+            if (powerUpUpdates.isNotEmpty()) {
+                updates["powerUps"] = powerUpUpdates
+            }
+
+            if (updates.isNotEmpty()) {
+                userDocRef.set(updates, SetOptions.merge()).await()
+            }
+        } catch (_: Exception) {
+            // Bỏ qua lỗi ngầm của Firestore để không làm gián đoạn luồng đăng nhập
         }
     }
 
