@@ -613,14 +613,16 @@ fun PracticeScreen(
                                 uid = uid,
                                 topic = topic,
                                 questionCount = selectedQuestionCount,
-                                allowedTypes = selectedTypes
+                                allowedTypes = selectedTypes,
+                                difficulty = selectedDifficulty
                             )
                         } else {
                             quizViewModel.generateQuiz(
                                 uid = uid,
                                 sessionId = selectedSessionId,
                                 questionCount = selectedQuestionCount,
-                                allowedTypes = selectedTypes
+                                allowedTypes = selectedTypes,
+                                difficulty = selectedDifficulty
                             )
                         }
                         showCreateSheet = false
