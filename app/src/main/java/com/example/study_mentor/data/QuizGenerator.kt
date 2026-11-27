@@ -12,23 +12,26 @@ private class QuizParseException(message: String) : Exception(message)
 
 object QuizGenerator {
 
+    val ALLOWED_QUESTION_TYPES = setOf("multiple_choice", "short_answer", "fill_blank")
+
     private const val SESSION_LIMIT = 5
     private const val MESSAGES_PER_SESSION = 30
     private const val PAIR_LIMIT = 8
     private const val SNIPPET_LENGTH = 300
     private const val MAX_TOPIC_LENGTH = 200
     private const val QUIZ_MAX_TOKENS = 1500
+    private const val TOKENS_PER_QUESTION = 220
+    private const val MIN_QUESTION_COUNT = 1
+    private const val MAX_QUESTION_COUNT = 15
+    private const val DEFAULT_QUESTION_COUNT = 5
     private const val MIN_VALID_ITEMS = 3
     private const val IMAGE_PREFIX = "[Image attached]"
+    val ALLOWED_DIFFICULTIES = setOf("easy", "medium", "hard")
+    private const val DEFAULT_DIFFICULTY = "medium"
 
     private const val SYSTEM_PROMPT =
         "You are a quiz generator for students. Respond with ONE valid JSON object only. " +
-            "No markdown, no code fences, no text outside the JSON."
-
-    private const val COMMON_RULES =
-        "Create exactly 5 questions: 3 multiple_choice (4 options each), 1 short_answer, " +
-            "1 fill_blank (use ____ for the blank).\n" +
-            "Keep each explanation to one or two sentences."
+                "No markdown, no code fences, no text outside the JSON."
 
     private val QUIZ_FORMAT = """
 Return ONLY a JSON object in this exact shape:
@@ -43,7 +46,7 @@ Return ONLY a JSON object in this exact shape:
     {"type": "fill_blank", "prompt": "... ____ ...", "answer": "...", "explanation": "..."}
   ]
 }
-correctIndex is 0-based.
+correctIndex is 0-based. Only include item objects whose "type" is in the allowed question types.
 """.trimIndent()
 
     private data class ChatMsg(
@@ -91,7 +94,6 @@ correctIndex is 0-based.
                 .trim()
                 .ifBlank { "Chưa có nội dung xem trước" }
 
-            // If your chat documents use another title field, update this fallback.
             val storedTitle = session.getString("title")
                 ?: session.getString("name")
 
@@ -105,22 +107,39 @@ correctIndex is 0-based.
             )
         }
     }
+    private fun buildDifficultyRule(difficulty: String): String = when (difficulty) {
+        "easy" -> "Difficulty level: EASY. Focus on basic definitions, direct recall, and straightforward concepts."
+        "hard" -> "Difficulty level: HARD. Focus on deeper analysis, edge cases, multi-step reasoning, and subtle distinctions."
+        else -> "Difficulty level: MEDIUM. Balance conceptual understanding and practical application."
+    }
 
     /**
      * Provide exactly one source:
      * - topic: generate from a typed topic;
      * - sessionId: generate from one selected conversation.
      *
-     * The default empty source is retained for compatibility with older callers:
-     * it generates from recent conversations.
+     * Optionally customize:
+     * - questionCount: total number of questions (1..15)
+     * - allowedTypes: subset of {"multiple_choice", "short_answer", "fill_blank"}
      */
     suspend fun generate(
         uid: String,
         topic: String? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        questionCount: Int = DEFAULT_QUESTION_COUNT,
+        allowedTypes: Set<String> = ALLOWED_QUESTION_TYPES,
+        difficulty: String = DEFAULT_DIFFICULTY
     ): Quiz {
         val cleanTopic = topic?.trim().orEmpty().take(MAX_TOPIC_LENGTH)
         val cleanSessionId = sessionId?.trim().orEmpty()
+        val cleanQuestionCount = questionCount.coerceIn(MIN_QUESTION_COUNT, MAX_QUESTION_COUNT)
+        val cleanTypes = allowedTypes
+            .map { it.trim() }
+            .filter { it in ALLOWED_QUESTION_TYPES }
+            .toSet()
+            .ifEmpty { ALLOWED_QUESTION_TYPES }
+        val cleanDifficulty = difficulty.trim().lowercase().takeIf { it in ALLOWED_DIFFICULTIES }
+            ?: DEFAULT_DIFFICULTY
 
         if (cleanTopic.isNotEmpty() && cleanSessionId.isNotEmpty()) {
             throw IllegalArgumentException("Choose either a topic or a chat, not both.")
@@ -142,7 +161,13 @@ correctIndex is 0-based.
 
         when {
             cleanTopic.isNotBlank() -> {
-                prompt = buildTopicPrompt(educationLevel, cleanTopic)
+                prompt = buildTopicPrompt(
+                    educationLevel = educationLevel,
+                    topic = cleanTopic,
+                    questionCount = cleanQuestionCount,
+                    allowedTypes = cleanTypes,
+                    difficulty = cleanDifficulty
+                )
                 sourceIds = emptyList()
                 sourceType = "topic"
                 sourceId = cleanTopic
@@ -175,13 +200,19 @@ correctIndex is 0-based.
 
                 val sourceText = pairs.mapIndexed { index, pair ->
                     "${index + 1}. Question: ${pair.question.take(SNIPPET_LENGTH)}\n" +
-                        "   Answer: ${pair.answer.take(SNIPPET_LENGTH)}"
+                            "   Answer: ${pair.answer.take(SNIPPET_LENGTH)}"
                 }.joinToString("\n")
-                prompt = buildChatPrompt(educationLevel, sourceText, sourceTitle)
+                prompt = buildChatPrompt(
+                    educationLevel = educationLevel,
+                    sourceText = sourceText,
+                    sourceTitle = sourceTitle,
+                    questionCount = cleanQuestionCount,
+                    allowedTypes = cleanTypes,
+                    difficulty = cleanDifficulty
+                )
             }
 
             else -> {
-                // Compatibility fallback for any existing caller still using generate(uid).
                 val pairs = loadRecentPairs(userRef)
                 if (pairs.isEmpty()) {
                     throw IllegalStateException(
@@ -195,15 +226,23 @@ correctIndex is 0-based.
                 fallbackTopic = sourceTitle
                 val sourceText = pairs.mapIndexed { index, pair ->
                     "${index + 1}. Question: ${pair.question.take(SNIPPET_LENGTH)}\n" +
-                        "   Answer: ${pair.answer.take(SNIPPET_LENGTH)}"
+                            "   Answer: ${pair.answer.take(SNIPPET_LENGTH)}"
                 }.joinToString("\n")
-                prompt = buildChatPrompt(educationLevel, sourceText, sourceTitle)
+                prompt = buildChatPrompt(
+                    educationLevel = educationLevel,
+                    sourceText = sourceText,
+                    sourceTitle = sourceTitle,
+                    questionCount = cleanQuestionCount,
+                    allowedTypes = cleanTypes,
+                    difficulty = cleanDifficulty
+                )
             }
         }
 
+        val maxTokens = maxOf(QUIZ_MAX_TOKENS, cleanQuestionCount * TOKENS_PER_QUESTION)
         var lastParseError: QuizParseException? = null
         repeat(2) {
-            val raw = callAi(prompt)
+            val raw = callAi(userPrompt = prompt, maxTokens = maxTokens)
             try {
                 return parse(
                     raw = raw,
@@ -211,7 +250,10 @@ correctIndex is 0-based.
                     fallbackTopic = fallbackTopic,
                     sourceType = sourceType,
                     sourceId = sourceId,
-                    sourceTitle = sourceTitle
+                    sourceTitle = sourceTitle,
+                    expectedCount = cleanQuestionCount,
+                    allowedTypes = cleanTypes,
+                    difficulty = cleanDifficulty
                 )
             } catch (e: QuizParseException) {
                 lastParseError = e
@@ -288,16 +330,50 @@ correctIndex is 0-based.
         return pairs.sortedByDescending { it.timestamp }.take(PAIR_LIMIT)
     }
 
+    private fun buildQuestionRules(
+        questionCount: Int,
+        allowedTypes: Set<String>,
+        difficulty: String
+    ): String {
+        val orderedTypes = ALLOWED_QUESTION_TYPES.filter { it in allowedTypes }
+        val descriptions = orderedTypes.map { type ->
+            when (type) {
+                "multiple_choice" -> "multiple_choice (4 options each)"
+                "short_answer" -> "short_answer"
+                "fill_blank" -> "fill_blank (use ____ for the blank)"
+                else -> type
+            }
+        }
+
+        val typeRule = if (descriptions.size == 1) {
+            "Use ONLY the question type: ${descriptions.first()}."
+        } else {
+            "Use ONLY these question types, distributed as evenly as possible: ${descriptions.joinToString(", ")}."
+        }
+
+        return """
+Create exactly $questionCount questions in total.
+$typeRule
+${buildDifficultyRule(difficulty)}
+Keep each explanation to one or two sentences.
+""".trimIndent()
+    }
+
     private fun buildChatPrompt(
         educationLevel: String,
         sourceText: String,
-        sourceTitle: String
-    ): String = """
+        sourceTitle: String,
+        questionCount: Int,
+        allowedTypes: Set<String>,
+        difficulty: String
+    ): String {
+        val rules = buildQuestionRules(questionCount, allowedTypes, difficulty)
+        return """
 Create a practice quiz for a $educationLevel student based ONLY on the following conversation: "$sourceTitle".
 Use the student's questions and the AI's answers as the source of facts.
 Do not introduce unrelated topics or facts that are not supported by the conversation.
 Write all quiz titles, questions, options, answers and explanations in Vietnamese. Keep JSON keys and enum values in English.
-$COMMON_RULES
+$rules
 If a question says it is a problem shown in a photo, base your quiz question on the content of its answer.
 
 $QUIZ_FORMAT
@@ -305,21 +381,34 @@ $QUIZ_FORMAT
 Conversation content:
 $sourceText
 """.trimIndent()
+    }
 
-    private fun buildTopicPrompt(educationLevel: String, topic: String): String = """
+    private fun buildTopicPrompt(
+        educationLevel: String,
+        topic: String,
+        questionCount: Int,
+        allowedTypes: Set<String>,
+        difficulty: String
+    ): String {
+        val rules = buildQuestionRules(questionCount, allowedTypes, difficulty)
+        return """
 Create a practice quiz for a $educationLevel student about this topic: "$topic".
 Write all quiz titles, questions, options, answers and explanations in Vietnamese. Keep JSON keys and enum values in English.
-$COMMON_RULES
+$rules
 
 $QUIZ_FORMAT
 """.trimIndent()
+    }
 
-    private suspend fun callAi(userPrompt: String): String {
+    private suspend fun callAi(
+        userPrompt: String,
+        maxTokens: Int
+    ): String {
         val builder = StringBuilder()
         OpenAIApiClient.askQuestion(
             prompt = userPrompt,
             systemPrompt = SYSTEM_PROMPT,
-            maxTokens = QUIZ_MAX_TOKENS
+            maxTokens = maxTokens
         ).collect { builder.append(it) }
         return builder.toString()
     }
@@ -330,7 +419,10 @@ $QUIZ_FORMAT
         fallbackTopic: String,
         sourceType: String,
         sourceId: String,
-        sourceTitle: String
+        sourceTitle: String,
+        expectedCount: Int,
+        allowedTypes: Set<String>,
+        difficulty: String = DEFAULT_DIFFICULTY
     ): Quiz {
         val start = raw.indexOf('{')
         val end = raw.lastIndexOf('}')
@@ -349,26 +441,29 @@ $QUIZ_FORMAT
 
         val items = buildList {
             for (i in 0 until array.length()) {
-                parseItem(array.optJSONObject(i))?.let { add(it) }
+                parseItem(array.optJSONObject(i), allowedTypes)?.let { add(it) }
+                if (size >= expectedCount) break
             }
         }
 
-        if (items.size < MIN_VALID_ITEMS) {
+        val minRequired = minOf(MIN_VALID_ITEMS, expectedCount)
+        if (items.size < minRequired) {
             throw QuizParseException("too few valid questions")
         }
 
-        val difficulty = root.optString("difficulty")
-            .trim()
-            .lowercase()
-            .takeIf { it in setOf("easy", "medium", "hard") }
-            ?: "medium"
+        val resolvedDifficulty = difficulty.trim().lowercase().takeIf { it in ALLOWED_DIFFICULTIES }
+            ?: root.optString("difficulty")
+                .trim()
+                .lowercase()
+                .takeIf { it in ALLOWED_DIFFICULTIES }
+            ?: DEFAULT_DIFFICULTY
 
         return Quiz(
             title = root.optString("title").trim()
                 .ifBlank { fallbackTopic.ifBlank { "Practice quiz" } },
             subject = root.optString("subject").trim().lowercase(),
             topic = root.optString("topic").trim().ifBlank { fallbackTopic },
-            difficulty = difficulty,
+            difficulty = resolvedDifficulty,
             xpReward = items.size * 10,
             sourceQuestionIds = sourceIds,
             items = items,
@@ -378,9 +473,14 @@ $QUIZ_FORMAT
         )
     }
 
-    private fun parseItem(obj: JSONObject?): QuizItem? {
+    private fun parseItem(
+        obj: JSONObject?,
+        allowedTypes: Set<String>
+    ): QuizItem? {
         if (obj == null) return null
         val type = obj.optString("type").trim()
+        if (type !in allowedTypes) return null
+
         val prompt = obj.optString("prompt").trim()
         val explanation = obj.optString("explanation").trim()
         if (prompt.isBlank()) return null

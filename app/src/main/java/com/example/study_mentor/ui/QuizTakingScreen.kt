@@ -80,6 +80,12 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material3.Surface
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,7 +102,11 @@ fun QuizTakingScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptic = LocalHapticFeedback.current
 
-    LaunchedEffect(quiz.quizId) {
+    val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
+
+
+    LaunchedEffect(quiz.quizId, currentUid) {
+        quizViewModel.observe(currentUid)
         quizViewModel.resetQuizTakingState()
     }
 
@@ -239,6 +249,15 @@ fun QuizTakingScreen(
         }
     }
 
+    val listScrollState = rememberScrollState()
+    val isFeedbackVisible = checkedAnswers[currentIndex] && quizUiState.isAnswerEvaluated
+
+    LaunchedEffect(isFeedbackVisible, currentIndex) {
+        if (isFeedbackVisible) {
+            delay(120) // chờ AnimatedVisibility mở xong rồi mới cuộn
+            listScrollState.animateScrollTo(listScrollState.maxValue)
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -276,8 +295,9 @@ fun QuizTakingScreen(
 
                 Column(
                     modifier = Modifier
+                        .weight(1f)
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(listScrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
 
@@ -309,20 +329,49 @@ fun QuizTakingScreen(
 
                     QuestionCard(question = currentQuestion)
 
+                    // Thanh Power-up cho câu trắc nghiệm nhiều lựa chọn
+                    if (currentQuestion.type == "multiple_choice") {
+                        val rightAnswerText = currentQuestion.options
+                            .getOrNull(currentQuestion.correctIndex)
+                            .orEmpty()
+                        val remainingChoices = currentQuestion.options.size - quizUiState.eliminatedOptionIndices.size
+
+                        RemoveWrongPowerUpChip(
+                            remainingCount = quizUiState.removeWrongCount,
+                            enabled = !checkedAnswers[currentIndex] &&
+                                    !isSubmitting &&
+                                    quizUiState.explodingOptionIndex == null &&
+                                    remainingChoices > 2,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                quizViewModel.useRemoveOneWrongOption(
+                                    options = currentQuestion.options,
+                                    correctAnswer = rightAnswerText
+                                )
+                            }
+                        )
+                    }
                     when (currentQuestion.type) {
                         "multiple_choice" -> {
                             currentQuestion.options.forEachIndexed { optionIndex, optionText ->
+                                val isEliminated = optionIndex in quizUiState.eliminatedOptionIndices
+                                val isExploding = optionIndex == quizUiState.explodingOptionIndex
                                 val selected =
-                                    answers[currentIndex]?.toIntOrNull() == optionIndex
+                                    !isEliminated && answers[currentIndex]?.toIntOrNull() == optionIndex
 
                                 OptionCard(
                                     optionText = optionText,
                                     isSelected = selected,
                                     isRevealed = checkedAnswers[currentIndex],
                                     isCorrectOption = optionIndex == currentQuestion.correctIndex,
-                                    enabled = !checkedAnswers[currentIndex] && !isSubmitting,
+                                    isEliminated = isEliminated,
+                                    isExploding = isExploding,
+                                    enabled = !checkedAnswers[currentIndex] &&
+                                            !isSubmitting &&
+                                            !isEliminated &&
+                                            !isExploding,
                                     onClick = {
-                                        if (!checkedAnswers[currentIndex]) {
+                                        if (!checkedAnswers[currentIndex] && !isEliminated && !isExploding) {
                                             answers[currentIndex] = optionIndex.toString()
                                             checkedAnswers[currentIndex] = true
                                             val isCorrect = optionIndex == currentQuestion.correctIndex
@@ -487,7 +536,11 @@ fun QuizTakingScreen(
                                     }
 
                                     val totalQuestions = quiz.items.size
-                                    val xpEarned = quiz.xpReward
+                                    val xpEarned = if (totalQuestions > 0) {
+                                        (score.toDouble() / totalQuestions * 50.0).toInt()
+                                    } else {
+                                        0
+                                    }
 
                                     coroutineScope.launch {
                                         try {
@@ -509,6 +562,9 @@ fun QuizTakingScreen(
                                                 correctAnswers = score,
                                                 totalQuestions = totalQuestions
                                             )
+                                            if (xpEarned > 0) {
+                                                statsRepository.addXp(xpEarned.toLong())
+                                            }
 
                                             if (totalQuestions > 0 && score.toFloat() / totalQuestions >= 0.8f) {
                                                 showCelebration = true
@@ -582,6 +638,64 @@ fun QuizTakingScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+        }
+    }
+}
+@Composable
+private fun RemoveWrongPowerUpChip(
+    remainingCount: Int,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val isActive = enabled && remainingCount > 0
+    val contentTint = if (isActive) PrimaryBlue else Color(0xFF9CA3AF)
+    val bgColor = if (isActive) Color.White else Color(0xFFF3F4F6)
+    val badgeColor = if (isActive) PrimaryBlue else Color(0xFF9CA3AF)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            onClick = onClick,
+            enabled = isActive,
+            shape = RoundedCornerShape(14.dp),
+            color = bgColor,
+            shadowElevation = if (isActive) 2.dp else 0.dp,
+            modifier = Modifier
+                .width(88.dp)
+                .height(48.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AutoFixHigh,
+                    contentDescription = "Xóa 1 đáp án sai",
+                    tint = contentTint,
+                    modifier = Modifier.size(26.dp)
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = badgeColor,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                ) {
+                    Text(
+                        text = remainingCount.toString(),
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
                 }
             }
         }
@@ -676,10 +790,14 @@ private fun OptionCard(
     isSelected: Boolean,
     isRevealed: Boolean,
     isCorrectOption: Boolean,
+    isEliminated: Boolean = false,
+    isExploding: Boolean = false,
     enabled: Boolean,
     onClick: () -> Unit
 ) {
     val targetColor = when {
+        isExploding -> Color(0xFFFFEDD5)
+        isEliminated -> Color(0xFFF1F5F9)
         isRevealed && isCorrectOption -> Color(0xFFDCFCE7)
         isRevealed && isSelected -> Color(0xFFFEE2E2)
         isSelected -> Color(0xFFE0E7FF)
@@ -691,13 +809,36 @@ private fun OptionCard(
         label = "Answer background"
     )
     val scale by animateFloatAsState(
-        targetValue = if (isRevealed && isCorrectOption) 1.015f else 1f,
-        animationSpec = tween(durationMillis = 250),
+        targetValue = when {
+            isExploding -> 1.06f
+            isEliminated -> 0.96f
+            isRevealed && isCorrectOption -> 1.015f
+            else -> 1f
+        },
+        animationSpec = if (isExploding) {
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+        } else {
+            tween(durationMillis = 250)
+        },
         label = "Answer pop"
     )
+    val cardAlpha by animateFloatAsState(
+        targetValue = when {
+            isExploding -> 0.85f
+            isEliminated -> 0.45f
+            else -> 1f
+        },
+        animationSpec = tween(durationMillis = 250),
+        label = "Answer alpha"
+    )
     val shakeX = remember { Animatable(0f) }
-    LaunchedEffect(isRevealed, isSelected, isCorrectOption) {
-        if (isRevealed && isSelected && !isCorrectOption) {
+    LaunchedEffect(isRevealed, isSelected, isCorrectOption, isExploding) {
+        if (isExploding) {
+            shakeX.animateTo(-10f, tween(50))
+            shakeX.animateTo(10f, tween(60))
+            shakeX.animateTo(-6f, tween(60))
+            shakeX.animateTo(0f, tween(50))
+        } else if (isRevealed && isSelected && !isCorrectOption) {
             shakeX.animateTo(-7f, tween(55))
             shakeX.animateTo(7f, tween(75))
             shakeX.animateTo(-3f, tween(75))
@@ -714,7 +855,7 @@ private fun OptionCard(
         modifier = Modifier
             .fillMaxWidth()
             .offset(x = shakeX.value.dp)
-            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .graphicsLayer(scaleX = scale, scaleY = scale, alpha = cardAlpha)
             .clickable(enabled = enabled, onClick = onClick)
     ) {
         Row(
@@ -727,13 +868,22 @@ private fun OptionCard(
                 text = optionText,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (isRevealed && isCorrectOption) Color(0xFF166534)
-                else if (isRevealed && isSelected) Color(0xFFB91C1C)
-                else MaterialTheme.colorScheme.onSurface,
+                textDecoration = if (isEliminated) TextDecoration.LineThrough else TextDecoration.None,
+                color = when {
+                    isEliminated -> Color.Gray
+                    isRevealed && isCorrectOption -> Color(0xFF166534)
+                    isRevealed && isSelected -> Color(0xFFB91C1C)
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
                 fontWeight = if (isSelected || (isRevealed && isCorrectOption))
                     FontWeight.Bold else FontWeight.Normal
             )
-            if (isRevealed && (isCorrectOption || isSelected)) {
+            if (isExploding) {
+                Text(
+                    text = "💥",
+                    fontSize = 20.sp
+                )
+            } else if (isRevealed && (isCorrectOption || isSelected)) {
                 Icon(
                     imageVector = if (isCorrectOption) Icons.Default.CheckCircle else Icons.Default.Close,
                     contentDescription = if (isCorrectOption) "Correct" else "Incorrect",

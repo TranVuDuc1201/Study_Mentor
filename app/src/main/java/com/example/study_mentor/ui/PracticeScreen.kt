@@ -1,16 +1,19 @@
 package com.example.study_mentor.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,26 +22,35 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Create
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,16 +62,25 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.study_mentor.data.ChatSession
 import com.example.study_mentor.data.Quiz
 import com.example.study_mentor.data.QuizChatSessionOption
+import com.example.study_mentor.data.QuizGenerator
 import com.example.study_mentor.ui.theme.BackgroundOffWhite
 import com.example.study_mentor.ui.theme.PrimaryBlue
 import com.example.study_mentor.ui.theme.SecondaryGreen
 
+private val QUESTION_TYPE_OPTIONS = listOf(
+    "multiple_choice" to "Multiple Choice",
+    "short_answer" to "Short Answer",
+    "fill_blank" to "Fill in the Blank"
+)
+private val DIFFICULTY_OPTIONS = listOf(
+    "easy" to "Easy",
+    "medium" to "Medium",
+    "hard" to "Hard"
+)
 
-
-
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PracticeScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -72,6 +93,7 @@ fun PracticeScreen(
     val quizState by quizViewModel.state.collectAsState()
     val uid = authState.currentUser?.uid
 
+    var selectedDifficulty by remember { mutableStateOf("medium") }
     val currentStreak by statsViewModel.dayStreak.collectAsState()
 
     LaunchedEffect(uid) {
@@ -79,13 +101,18 @@ fun PracticeScreen(
         statsViewModel.observeUserStatistics(uid)
     }
 
-    var showCreateDialog by remember { mutableStateOf(false) }
+    var showCreateSheet by remember { mutableStateOf(false) }
     var selectedMode by remember { mutableStateOf("topic") }
     var topic by remember { mutableStateOf("") }
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    var selectedQuestionCount by remember { mutableIntStateOf(5) }
+    var selectedTypes by remember { mutableStateOf(QuizGenerator.ALLOWED_QUESTION_TYPES) }
 
-    LaunchedEffect(showCreateDialog, uid) {
-        if (showCreateDialog && uid != null) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+
+    LaunchedEffect(showCreateSheet, uid) {
+        if (showCreateSheet && uid != null) {
             quizViewModel.loadChatSessions(uid)
         }
     }
@@ -145,7 +172,7 @@ fun PracticeScreen(
                 .fillMaxWidth()
                 .background(
                     brush = Brush.horizontalGradient(
-                        colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)),
+                        colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
                     ),
                     shape = MaterialTheme.shapes.medium
                 )
@@ -153,7 +180,9 @@ fun PracticeScreen(
                     topic = ""
                     selectedSessionId = null
                     selectedMode = "topic"
-                    showCreateDialog = true
+                    selectedQuestionCount = 5
+                    selectedTypes = QuizGenerator.ALLOWED_QUESTION_TYPES
+                    showCreateSheet = true
                 }
                 .padding(20.dp)
         ) {
@@ -246,99 +275,320 @@ fun PracticeScreen(
         Spacer(modifier = Modifier.height(80.dp))
     }
 
-    if (showCreateDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = {
-                Text("Create a Quiz with AI", fontWeight = FontWeight.Bold)
-            },
-            text = {
+    if (showCreateSheet) {
+        val canSubmit = uid != null &&
+                !quizState.isGenerating &&
+                selectedTypes.isNotEmpty() &&
+                when (selectedMode) {
+                    "topic" -> topic.isNotBlank()
+                    else -> selectedSessionId != null
+                }
+
+        ModalBottomSheet(
+            onDismissRequest = { showCreateSheet = false },
+            sheetState = sheetState,
+            containerColor = BackgroundOffWhite,
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header gradient đồng bộ banner chính
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(Color(0xFF4F46E5), Color(0xFF7C3AED))
+                            ),
+                            shape = RoundedCornerShape(18.dp)
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Create a Quiz with AI",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "$selectedQuestionCount questions • ${selectedTypes.size} type(s) selected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.88f)
+                            )
+                        }
+                    }
+                }
+
+                // Nội dung cuộn bên trong sheet
                 Column(
                     modifier = Modifier
-                        .heightIn(max = 500.dp)
+                        .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Choose how you want to create a Quiz:")
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedMode = "topic" },
-                        verticalAlignment = Alignment.CenterVertically
+                    // 1. Nguồn tạo quiz
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        RadioButton(
-                            selected = selectedMode == "topic",
-                            onClick = { selectedMode = "topic" }
-                        )
-                        Column {
-                            Text("By Topic", fontWeight = FontWeight.SemiBold)
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Text(
-                                "Enter a topic you want to review.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                text = "Quiz Source",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF374151)
                             )
-                        }
-                    }
 
-                    if (selectedMode == "topic") {
-                        OutlinedTextField(
-                            value = topic,
-                            onValueChange = { topic = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Topic") },
-                            placeholder = { Text("e.g., Kotlin, Android, Database") },
-                            singleLine = true
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedMode = "chat" },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedMode == "chat",
-                            onClick = { selectedMode = "chat" }
-                        )
-                        Column {
-                            Text("From an AI Chat Conversation", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "Select an existing conversation.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                            SheetSourceCard(
+                                title = "By Topic",
+                                subtitle = "Type a topic you want to review",
+                                selected = selectedMode == "topic",
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.EditNote,
+                                        contentDescription = null,
+                                        tint = if (selectedMode == "topic") PrimaryBlue else Color.Gray
+                                    )
+                                },
+                                onClick = { selectedMode = "topic" }
                             )
-                        }
-                    }
 
-                    if (selectedMode == "chat") {
-                        when {
-                            quizState.isLoadingSessions -> {
-                                Row(
+                            if (selectedMode == "topic") {
+                                OutlinedTextField(
+                                    value = topic,
+                                    onValueChange = { topic = it },
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    CircularProgressIndicator()
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text("Loading conversations...")
-                                }
+                                    label = { Text("Topic") },
+                                    placeholder = { Text("e.g., Kotlin, Android, Database") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
                             }
 
-                            quizState.chatSessions.isEmpty() -> {
+                            SheetSourceCard(
+                                title = "From an AI Chat Conversation",
+                                subtitle = "Pick from your recent chat sessions",
+                                selected = selectedMode == "chat",
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ChatBubbleOutline,
+                                        contentDescription = null,
+                                        tint = if (selectedMode == "chat") PrimaryBlue else Color.Gray
+                                    )
+                                },
+                                onClick = { selectedMode = "chat" }
+                            )
+
+                            if (selectedMode == "chat") {
+                                when {
+                                    quizState.isLoadingSessions -> {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(22.dp))
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text("Loading conversations...")
+                                        }
+                                    }
+
+                                    quizState.chatSessions.isEmpty() -> {
+                                        Text(
+                                            text = "No conversations found.",
+                                            color = Color.Gray,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+
+                                    else -> {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            quizState.chatSessions.forEach { session ->
+                                                ChatSessionRow(
+                                                    session = session,
+                                                    selected = selectedSessionId == session.id,
+                                                    onClick = { selectedSessionId = session.id }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Ô tăng giảm số lượng câu hỏi (- / +)
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "No conversations found.",
+                                    text = "Number of questions",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF374151)
+                                )
+                                Text(
+                                    text = "1 – 15 questions",
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = Color.Gray
                                 )
                             }
 
-                            else -> {
-                                quizState.chatSessions.forEach { session ->
-                                    ChatSessionRow(
-                                        session = session,
-                                        selected = selectedSessionId == session.id,
-                                        onClick = { selectedSessionId = session.id }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { if (selectedQuestionCount > 1) selectedQuestionCount-- },
+                                    enabled = selectedQuestionCount > 1,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Decrease question count"
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = PrimaryBlue.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = selectedQuestionCount.toString(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryBlue,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
+
+                                FilledTonalIconButton(
+                                    onClick = { if (selectedQuestionCount < 15) selectedQuestionCount++ },
+                                    enabled = selectedQuestionCount < 15,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Increase question count"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Difficulty",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF374151)
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                DIFFICULTY_OPTIONS.forEach { (key, label) ->
+                                    FilterChip(
+                                        selected = selectedDifficulty == key,
+                                        onClick = { selectedDifficulty = key },
+                                        label = { Text(label) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.14f),
+                                            selectedLabelColor = PrimaryBlue
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Loại câu hỏi
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Question types",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF374151)
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                QUESTION_TYPE_OPTIONS.forEach { (typeKey, typeLabel) ->
+                                    val isSelected = typeKey in selectedTypes
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedTypes = if (isSelected) {
+                                                if (selectedTypes.size > 1) selectedTypes - typeKey
+                                                else selectedTypes
+                                            } else {
+                                                selectedTypes + typeKey
+                                            }
+                                        },
+                                        label = { Text(typeLabel) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.14f),
+                                            selectedLabelColor = PrimaryBlue
+                                        )
                                     )
                                 }
                             }
@@ -347,41 +597,97 @@ fun PracticeScreen(
 
                     if (uid == null) {
                         Text(
-                            "Please log in to use this feature.",
-                            color = MaterialTheme.colorScheme.error
+                            text = "Please log in to use this feature.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
-            },
-            confirmButton = {
+
+                // Nút tạo quiz cố định ở chân sheet
                 Button(
-                    enabled = uid != null &&
-                        !quizState.isGenerating &&
-                        when (selectedMode) {
-                            "topic" -> topic.isNotBlank()
-                            else -> selectedSessionId != null
-                        },
+                    enabled = canSubmit,
                     onClick = {
                         if (selectedMode == "topic") {
-                            quizViewModel.generateQuiz(uid, topic = topic)
+                            quizViewModel.generateQuiz(
+                                uid = uid,
+                                topic = topic,
+                                questionCount = selectedQuestionCount,
+                                allowedTypes = selectedTypes,
+                                difficulty = selectedDifficulty
+                            )
                         } else {
                             quizViewModel.generateQuiz(
                                 uid = uid,
-                                sessionId = selectedSessionId
+                                sessionId = selectedSessionId,
+                                questionCount = selectedQuestionCount,
+                                allowedTypes = selectedTypes,
+                                difficulty = selectedDifficulty
                             )
                         }
-                        showCreateDialog = false
-                    }
+                        showCreateSheet = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
                 ) {
-                    Text(if (quizState.isGenerating) "Generating..." else "Create Quiz")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) {
-                    Text("Cancel")
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (quizState.isGenerating) "Generating..." else "Create Quiz",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-        )
+        }
+    }
+}
+
+@Composable
+private fun SheetSourceCard(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    icon: @Composable () -> Unit,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) PrimaryBlue.copy(alpha = 0.08f) else BackgroundOffWhite,
+        border = BorderStroke(
+            width = if (selected) 1.5.dp else 1.dp,
+            color = if (selected) PrimaryBlue else Color(0xFFE5E7EB)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            icon()
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) PrimaryBlue else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+            RadioButton(selected = selected, onClick = onClick)
+        }
     }
 }
 
@@ -397,9 +703,13 @@ private fun ChatSessionRow(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) Color(0xFFE0E7FF) else Color.White
+            containerColor = if (selected) Color(0xFFE0E7FF) else BackgroundOffWhite
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) PrimaryBlue else Color(0xFFE5E7EB)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
